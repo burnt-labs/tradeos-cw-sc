@@ -1,0 +1,18 @@
+{
+  "sepolia": {
+    "MinimalForwarder": "0xD04F98C88cE1054c90022EE34d566B9237a1203C",
+    "CheckIn": ""
+  },
+  "bscTestnet": {
+    "MinimalForwarder": "0xD04F98C88cE1054c90022EE34d566B9237a1203C",
+    "CheckIn": ""
+  },
+  "baseSepolia": {
+    "MinimalForwarder": "0xD04F98C88cE1054c90022EE34d566B9237a1203C",
+    "CheckIn": "0x54Bf4C8B93B37b41a5083f75891BF6419e11B2E0"
+  },
+  "hashkeyTestnet": {
+    "MinimalForwarder": "0xD04F98C88cE1054c90022EE34d566B9237a1203C",
+    "CheckIn": ""
+  }
+}

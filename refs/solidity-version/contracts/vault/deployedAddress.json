@@ -1,0 +1,18 @@
+{
+  "sepolia": {
+    "Vault": "",
+    "Points": ""
+  },
+  "bscTestnet": {
+    "Vault": "",
+    "Points": ""
+  },
+  "baseSepolia": {
+    "Vault": "0xaF1eE434117D1E918E9Fd7dB7e8Cf5Ac4988A1Ac",
+    "Points": "0xd1396F81258eD24BC124240336aace68E19465a9"
+  },
+  "hashkeyTestnet": {
+    "Vault": "",
+    "Points": ""
+  }
+}

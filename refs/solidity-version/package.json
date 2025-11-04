@@ -1,0 +1,38 @@
+{
+    "private": true,
+    "scripts": {
+        "compile": "hardhat compile",
+        "test": "hardhat test",
+        "check-in:deploy": "hardhat run scripts/check-in/deploy.ts",
+        "check-in:call": "hardhat run scripts/check-in/call.ts",
+        "check-in:verify": "hardhat run scripts/check-in/verify.ts",
+        "vault:deploy": "hardhat run scripts/vault/deploy.ts",
+        "vault:call": "hardhat run scripts/vault/call.ts",
+        "vault:verify": "hardhat run scripts/vault/verify.ts",
+        "swap-handler:deploy": "hardhat run scripts/swap-handler/deploy.ts",
+        "swap-handler:call": "hardhat run scripts/swap-handler/call.ts",
+        "swap-handler:verify": "hardhat run scripts/swap-handler/verify.ts"
+    },
+    "devDependencies": {
+        "@nomicfoundation/hardhat-ethers": "^3.0.8",
+        "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+        "@nomiclabs/hardhat-ethers": "^2.2.3",
+        "@openzeppelin/contracts": "^4.9.6",
+        "@types/chai": "^4.3.20",
+        "@types/mocha": "^10.0.10",
+        "@types/node": "^22.10.10",
+        "@typescript-eslint/eslint-plugin": "^8.21.0",
+        "@typescript-eslint/parser": "^8.21.0",
+        "chai": "^4.5.0",
+        "dotenv": "^16.4.7",
+        "eslint": "^8.57.1",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-prettier": "^5.2.3",
+        "ethers": "^6.13.5",
+        "hardhat": "^2.22.18",
+        "hardhat-deploy": "^0.14.0",
+        "prettier": "^3.4.2",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.7.3"
+    }
+}
