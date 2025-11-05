@@ -1,10 +1,13 @@
-use cosmwasm_std::{Addr, Coin, Uint128};
+use cosmwasm_std::Uint128;
 use cw_multi_test::{App, Executor, IntoAddr};
 use tradeos_cw_sc::msg::{
-    AssetInfo, ClaimInfo, ConfigResponse, ExecuteMsg, GetClaimDigestResponse, QueryMsg,
+    AssetInfo, ClaimInfo, ClaimedResponse, ConfigResponse, ExecuteMsg, GetClaimDigestResponse,
+    QueryMsg,
 };
 
-use super::shared_setup::{setup_contract, DENOM, INITIAL_BALANCE};
+use super::shared_setup::{
+    create_claim_with_signature, generate_test_keypair, pubkey_to_hex, setup_contract, DENOM,
+};
 
 #[test]
 fn test_contract_instantiation() {
@@ -14,10 +17,10 @@ fn test_contract_instantiation() {
     // Query contract config
     let config: ConfigResponse = app
         .wrap()
-        .query_wasm_smart(contract_addr, &QueryMsg::Config {})
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::Config {})
         .unwrap();
 
-    assert_eq!(config.owner, "admin".into_addr());
+    assert_eq!(config.owner, "admin".into_addr().to_string());
     assert!(!config.verifier_pubkey_hex.is_empty());
     assert!(config.verifier_pubkey_hex.starts_with("0x"));
 }
@@ -79,7 +82,7 @@ fn test_is_claimed_query() {
         .unwrap();
 
     // Check if claimed (should be false initially)
-    let is_claimed: tradeos_cw_sc::msg::ClaimedResponse = app
+    let is_claimed: ClaimedResponse = app
         .wrap()
         .query_wasm_smart(
             contract_addr,
@@ -98,7 +101,8 @@ fn test_set_verifier() {
     let contract_addr = setup_contract(&mut app, None);
     let admin = "admin".into_addr();
 
-    let new_pubkey = "0x03b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3".to_string();
+    let (_signing_key, verifying_key) = generate_test_keypair();
+    let new_pubkey = pubkey_to_hex(&verifying_key);
 
     // Owner can set verifier
     let msg = ExecuteMsg::SetVerifier {
@@ -124,7 +128,8 @@ fn test_set_verifier_unauthorized() {
     let contract_addr = setup_contract(&mut app, None);
     let user1 = "user1".into_addr();
 
-    let new_pubkey = "0x03b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3".to_string();
+    let (_signing_key, verifying_key) = generate_test_keypair();
+    let new_pubkey = pubkey_to_hex(&verifying_key);
 
     // Non-owner cannot set verifier
     let msg = ExecuteMsg::SetVerifier {
@@ -157,7 +162,8 @@ fn test_transfer_ownership() {
     assert_eq!(config.owner, user1.to_string());
 
     // New owner can now perform owner operations
-    let new_pubkey = "0x03b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3".to_string();
+    let (_signing_key, verifying_key) = generate_test_keypair();
+    let new_pubkey = pubkey_to_hex(&verifying_key);
     let msg = ExecuteMsg::SetVerifier {
         verifier_pubkey: new_pubkey,
     };
@@ -191,7 +197,7 @@ fn test_emergency_withdraw_native() {
     app.init_modules(|router, _api, storage| {
         router
             .bank
-            .init_balance(storage, &contract_addr, coins(5000, DENOM))
+            .init_balance(storage, &contract_addr, cosmwasm_std::coins(5000, DENOM))
             .unwrap();
     });
 
@@ -226,6 +232,82 @@ fn test_emergency_withdraw_unauthorized() {
 }
 
 #[test]
+fn test_claim_native_token_success() {
+    let mut app = App::default();
+    
+    // Generate key pair for verifier
+    let (signing_key, verifying_key) = generate_test_keypair();
+    let verifier_pubkey = pubkey_to_hex(&verifying_key);
+    
+    let contract_addr = setup_contract(&mut app, Some(verifier_pubkey));
+    let user1 = "user1".into_addr();
+
+    // Fund the contract
+    app.init_modules(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &contract_addr, cosmwasm_std::coins(10000, DENOM))
+            .unwrap();
+    });
+
+    let claim = ClaimInfo {
+        asset: AssetInfo::Native {
+            denom: DENOM.to_string(),
+        },
+        to: user1.to_string(),
+        value: Uint128::from(1000u128),
+        deadline: 0,
+        comment: "test claim".to_string(),
+    };
+
+    // Get digest from contract to verify our hash computation
+    let digest_response: GetClaimDigestResponse = app
+        .wrap()
+        .query_wasm_smart(
+            contract_addr.clone(),
+            &QueryMsg::GetClaimDigest {
+                claim: claim.clone(),
+            },
+        )
+        .unwrap();
+    
+    // Generate valid signature
+    let signature = create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+
+    let msg = ExecuteMsg::Claim {
+        claim: claim.clone(),
+        signature,
+    };
+    let res = app.execute_contract(user1.clone(), contract_addr.clone(), &msg, &[]);
+    if let Err(e) = &res {
+        println!("Claim failed: {:?}", e);
+        println!("Contract digest: {}", digest_response.digest_hex);
+    }
+    assert!(res.is_ok());
+
+    // Verify the claim was marked as claimed
+    let digest_response: GetClaimDigestResponse = app
+        .wrap()
+        .query_wasm_smart(
+            contract_addr.clone(),
+            &QueryMsg::GetClaimDigest { claim },
+        )
+        .unwrap();
+
+    let is_claimed: ClaimedResponse = app
+        .wrap()
+        .query_wasm_smart(
+            contract_addr,
+            &QueryMsg::IsClaimed {
+                digest_hex: digest_response.digest_hex,
+            },
+        )
+        .unwrap();
+
+    assert!(is_claimed.claimed);
+}
+
+#[test]
 fn test_claim_invalid_value() {
     let mut app = App::default();
     let contract_addr = setup_contract(&mut app, None);
@@ -256,7 +338,7 @@ fn test_claim_expired() {
     let user1 = "user1".into_addr();
 
     // Set block time to a future time
-    app.set_block(|block| {
+    app.update_block(|block| {
         block.time = block.time.plus_seconds(1000);
     });
 
@@ -288,7 +370,7 @@ fn test_claim_invalid_signature() {
     app.init_modules(|router, _api, storage| {
         router
             .bank
-            .init_balance(storage, &contract_addr, coins(10000, DENOM))
+            .init_balance(storage, &contract_addr, cosmwasm_std::coins(10000, DENOM))
             .unwrap();
     });
 
@@ -306,6 +388,99 @@ fn test_claim_invalid_signature() {
     let msg = ExecuteMsg::Claim {
         claim,
         signature: "0xinvalid".to_string(),
+    };
+    let res = app.execute_contract(user1, contract_addr, &msg, &[]);
+    assert!(res.is_err());
+}
+
+#[test]
+fn test_claim_wrong_signature() {
+    let mut app = App::default();
+    
+    // Generate key pair for verifier
+    let (_signing_key, verifying_key) = generate_test_keypair();
+    let verifier_pubkey = pubkey_to_hex(&verifying_key);
+    
+    let contract_addr = setup_contract(&mut app, Some(verifier_pubkey));
+    let user1 = "user1".into_addr();
+
+    // Fund the contract
+    app.init_modules(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &contract_addr, cosmwasm_std::coins(10000, DENOM))
+            .unwrap();
+    });
+
+    let claim = ClaimInfo {
+        asset: AssetInfo::Native {
+            denom: DENOM.to_string(),
+        },
+        to: user1.to_string(),
+        value: Uint128::from(1000u128),
+        deadline: 0,
+        comment: "test claim".to_string(),
+    };
+
+    // Use signature from a different key pair
+    let (wrong_signing_key, _wrong_verifying_key) = generate_test_keypair();
+    let wrong_signature = create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &wrong_signing_key);
+
+    let msg = ExecuteMsg::Claim {
+        claim,
+        signature: wrong_signature,
+    };
+    let res = app.execute_contract(user1, contract_addr, &msg, &[]);
+    assert!(res.is_err());
+}
+
+#[test]
+fn test_claim_already_claimed() {
+    let mut app = App::default();
+    
+    // Generate key pair for verifier
+    let (signing_key, verifying_key) = generate_test_keypair();
+    let verifier_pubkey = pubkey_to_hex(&verifying_key);
+    
+    let contract_addr = setup_contract(&mut app, Some(verifier_pubkey));
+    let user1 = "user1".into_addr();
+
+    // Fund the contract
+    app.init_modules(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &contract_addr, cosmwasm_std::coins(10000, DENOM))
+            .unwrap();
+    });
+
+    let claim = ClaimInfo {
+        asset: AssetInfo::Native {
+            denom: DENOM.to_string(),
+        },
+        to: user1.to_string(),
+        value: Uint128::from(1000u128),
+        deadline: 0,
+        comment: "test claim".to_string(),
+    };
+
+    // Generate valid signature
+    let signature = create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+
+    // First claim should succeed
+    let msg = ExecuteMsg::Claim {
+        claim: claim.clone(),
+        signature: signature.clone(),
+    };
+    let res = app.execute_contract(user1.clone(), contract_addr.clone(), &msg, &[]);
+    if let Err(e) = &res {
+        println!("Claim failed: {:?}", e);
+    }
+    assert!(res.is_ok());
+
+    // Second claim with same signature should fail
+    let msg = ExecuteMsg::Claim {
+        claim,
+        signature,
     };
     let res = app.execute_contract(user1, contract_addr, &msg, &[]);
     assert!(res.is_err());
@@ -403,3 +578,58 @@ fn test_digest_different_claims() {
     assert_ne!(digest1.digest_hex, digest2.digest_hex);
 }
 
+#[test]
+fn test_claim_with_deadline() {
+    let mut app = App::default();
+    
+    // Generate key pair for verifier
+    let (signing_key, verifying_key) = generate_test_keypair();
+    let verifier_pubkey = pubkey_to_hex(&verifying_key);
+    
+    let contract_addr = setup_contract(&mut app, Some(verifier_pubkey));
+    let user1 = "user1".into_addr();
+
+    // Fund the contract
+    app.init_modules(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &contract_addr, cosmwasm_std::coins(10000, DENOM))
+            .unwrap();
+    });
+
+    let claim = ClaimInfo {
+        asset: AssetInfo::Native {
+            denom: DENOM.to_string(),
+        },
+        to: user1.to_string(),
+        value: Uint128::from(1000u128),
+        deadline: app.block_info().time.seconds() + 3600, // Valid deadline (1 hour from now)
+        comment: "test claim with deadline".to_string(),
+    };
+
+    // Generate valid signature
+    let signature = create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+
+    let msg = ExecuteMsg::Claim {
+        claim,
+        signature,
+    };
+    let res = app.execute_contract(user1, contract_addr, &msg, &[]);
+    assert!(res.is_ok());
+}
+
+#[test]
+fn test_set_verifier_invalid_pubkey_length() {
+    let mut app = App::default();
+    let contract_addr = setup_contract(&mut app, None);
+    let admin = "admin".into_addr();
+
+    // Invalid pubkey (wrong length)
+    let invalid_pubkey = "0x1234".to_string();
+
+    let msg = ExecuteMsg::SetVerifier {
+        verifier_pubkey: invalid_pubkey,
+    };
+    let res = app.execute_contract(admin, contract_addr, &msg, &[]);
+    assert!(res.is_err());
+}

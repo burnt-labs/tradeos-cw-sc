@@ -23,5 +23,7 @@ base64 = "0.22"
 tiny-keccak = { version = "2", features = ["keccak"] }
 
 [dev-dependencies]
-cw-multi-test = "3.0.0"
+cw-multi-test = { git = "https://github.com/CosmWasm/cw-multi-test", tag = "v2.5.1", features = ["cosmwasm_2_2"] }
+k256 = { version = "0.13", features = ["ecdsa"] }
+rand = "0.8"
 
