@@ -17,20 +17,27 @@ pub fn generate_test_keypair() -> (SigningKey, VerifyingKey) {
 }
 
 // Helper function to get compressed public key (33 bytes) as hex string
+// Note: cosmwasm-std expects 33-byte compressed secp256k1 public key
 pub fn pubkey_to_hex(pk: &VerifyingKey) -> String {
     use k256::elliptic_curve::sec1::ToEncodedPoint;
     // Get the affine point from the verifying key
     let affine = pk.as_affine();
-    let encoded_point = affine.to_encoded_point(true); // compressed
+    let encoded_point = affine.to_encoded_point(true); // compressed (33 bytes)
     let bytes = encoded_point.as_bytes();
     format!("0x{}", hex::encode(bytes))
 }
 
 // Helper function to sign a message hash with the signing key
+// Note: cosmwasm-std::secp256k1_verify expects 64-byte compact format (r||s)
+// k256::ecdsa::Signature::to_bytes() returns 64 bytes in the correct format
 pub fn sign_message_hash(signing_key: &SigningKey, message_hash: &[u8; 32]) -> String {
     use k256::ecdsa::signature::Signer;
     let signature: k256::ecdsa::Signature = signing_key.sign(message_hash);
+    
+    // to_bytes() returns 64-byte compact format (r||s)
+    // This should be compatible with cosmwasm-std::secp256k1_verify
     let sig_bytes = signature.to_bytes();
+    
     format!("0x{}", hex::encode(sig_bytes))
 }
 

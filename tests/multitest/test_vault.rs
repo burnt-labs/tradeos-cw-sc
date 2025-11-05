@@ -281,7 +281,6 @@ fn test_claim_native_token_success() {
     let res = app.execute_contract(user1.clone(), contract_addr.clone(), &msg, &[]);
     if let Err(e) = &res {
         println!("Claim failed: {:?}", e);
-        println!("Contract digest: {}", digest_response.digest_hex);
     }
     assert!(res.is_ok());
 
