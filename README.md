@@ -28,7 +28,7 @@ This is the Cosmwasm Smart Contract for the TradeOS project.
 2. **Upload Contract to XION Testnet**
 
    ```bash
-   WALLET="tbh-test"
+   WALLET="your-wallet-name"
    xiond tx wasm store ./artifacts/tradeos_cw_sc.wasm \
      --chain-id xion-testnet-2 \
      --gas-adjustment 1.3 \
@@ -103,7 +103,7 @@ xiond query wasm contract-state smart $CONTRACT "$QUERY" \
 
 ```bash
 CONTRACT="xion1tg3x833n3qmccpzde32mw093vsr6eltgrxzvy5rjk2ehmf8u6hdqzyh58l"
-WALLET="tbh-test"
+WALLET="your-wallet-name"
 
 # Claim
 EXECUTE='{"claim":{"claim":{...},"signature":"0x..."}}'
