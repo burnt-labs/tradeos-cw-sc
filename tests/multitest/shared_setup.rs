@@ -1,6 +1,6 @@
 use cosmwasm_std::{coins, Addr};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor, IntoAddr};
-use k256::ecdsa::{SigningKey, VerifyingKey};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tradeos_cw_sc::helpers::to_eth_signed_message_hash;
 use tradeos_cw_sc::msg::{ClaimInfo, InstantiateMsg};
 
@@ -9,34 +9,38 @@ pub const DENOM: &str = "uxion";
 pub const INITIAL_BALANCE: u128 = 1000000;
 
 // Helper function to generate a test secp256k1 key pair
-pub fn generate_test_keypair() -> (SigningKey, VerifyingKey) {
+// Use secp256k1 crate for full compatibility with cosmwasm-std
+pub fn generate_test_keypair() -> (SecretKey, PublicKey) {
     use rand::thread_rng;
-    let signing_key = SigningKey::random(&mut thread_rng());
-    let verifying_key = *signing_key.verifying_key();
-    (signing_key, verifying_key)
+    let secp = Secp256k1::new();
+    let mut rng = thread_rng();
+    let secret_key = SecretKey::new(&mut rng);
+    let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+    (secret_key, public_key)
 }
 
 // Helper function to get compressed public key (33 bytes) as hex string
 // Note: cosmwasm-std expects 33-byte compressed secp256k1 public key
-pub fn pubkey_to_hex(pk: &VerifyingKey) -> String {
-    use k256::elliptic_curve::sec1::ToEncodedPoint;
-    // Get the affine point from the verifying key
-    let affine = pk.as_affine();
-    let encoded_point = affine.to_encoded_point(true); // compressed (33 bytes)
-    let bytes = encoded_point.as_bytes();
+pub fn pubkey_to_hex(pk: &PublicKey) -> String {
+    // Serialize public key in compressed format (33 bytes)
+    let bytes = pk.serialize();
     format!("0x{}", hex::encode(bytes))
 }
 
 // Helper function to sign a message hash with the signing key
 // Note: cosmwasm-std::secp256k1_verify expects 64-byte compact format (r||s)
-// k256::ecdsa::Signature::to_bytes() returns 64 bytes in the correct format
-pub fn sign_message_hash(signing_key: &SigningKey, message_hash: &[u8; 32]) -> String {
-    use k256::ecdsa::signature::Signer;
-    let signature: k256::ecdsa::Signature = signing_key.sign(message_hash);
+// secp256k1 crate produces compact format compatible with cosmwasm-std
+pub fn sign_message_hash(signing_key: &SecretKey, message_hash: &[u8; 32]) -> String {
+    use secp256k1::{Message, Secp256k1};
     
-    // to_bytes() returns 64-byte compact format (r||s)
-    // This should be compatible with cosmwasm-std::secp256k1_verify
-    let sig_bytes = signature.to_bytes();
+    // Create secp256k1 context and sign
+    let secp = Secp256k1::new();
+    let message = Message::from_digest_slice(message_hash)
+        .expect("Failed to create message from hash");
+    
+    // Sign with secp256k1 (this produces compact format compatible with cosmwasm-std)
+    let signature = secp.sign_ecdsa(&message, signing_key);
+    let sig_bytes = signature.serialize_compact();
     
     format!("0x{}", hex::encode(sig_bytes))
 }
@@ -48,7 +52,7 @@ pub fn create_claim_with_signature(
     app: &App,
     contract_addr: &str,
     claim: &ClaimInfo,
-    signing_key: &SigningKey,
+    signing_key: &SecretKey,
 ) -> String {
     let block_info = app.block_info();
     

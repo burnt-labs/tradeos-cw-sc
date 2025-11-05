@@ -234,11 +234,11 @@ fn test_emergency_withdraw_unauthorized() {
 #[test]
 fn test_claim_native_token_success() {
     let mut app = App::default();
-    
+
     // Generate key pair for verifier
     let (signing_key, verifying_key) = generate_test_keypair();
     let verifier_pubkey = pubkey_to_hex(&verifying_key);
-    
+
     let contract_addr = setup_contract(&mut app, Some(verifier_pubkey));
     let user1 = "user1".into_addr();
 
@@ -260,19 +260,25 @@ fn test_claim_native_token_success() {
         comment: "test claim".to_string(),
     };
 
-    // Get digest from contract to verify our hash computation
-    let digest_response: GetClaimDigestResponse = app
+    // Verify public key was stored correctly
+    let config: ConfigResponse = app
         .wrap()
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &QueryMsg::GetClaimDigest {
-                claim: claim.clone(),
-            },
-        )
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::Config {})
         .unwrap();
-    
+    let stored_pubkey_bytes = hex::decode(&config.verifier_pubkey_hex[2..]).unwrap();
+    assert_eq!(
+        stored_pubkey_bytes.len(),
+        33,
+        "Stored public key must be 33 bytes"
+    );
+
     // Generate valid signature
-    let signature = create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+    let signature =
+        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+
+    // Verify signature format: should be 64 bytes (128 hex chars + "0x")
+    let sig_bytes = hex::decode(&signature[2..]).unwrap();
+    assert_eq!(sig_bytes.len(), 64, "Signature must be 64 bytes");
 
     let msg = ExecuteMsg::Claim {
         claim: claim.clone(),
@@ -287,10 +293,7 @@ fn test_claim_native_token_success() {
     // Verify the claim was marked as claimed
     let digest_response: GetClaimDigestResponse = app
         .wrap()
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &QueryMsg::GetClaimDigest { claim },
-        )
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::GetClaimDigest { claim })
         .unwrap();
 
     let is_claimed: ClaimedResponse = app
@@ -395,11 +398,11 @@ fn test_claim_invalid_signature() {
 #[test]
 fn test_claim_wrong_signature() {
     let mut app = App::default();
-    
+
     // Generate key pair for verifier
     let (_signing_key, verifying_key) = generate_test_keypair();
     let verifier_pubkey = pubkey_to_hex(&verifying_key);
-    
+
     let contract_addr = setup_contract(&mut app, Some(verifier_pubkey));
     let user1 = "user1".into_addr();
 
@@ -423,7 +426,8 @@ fn test_claim_wrong_signature() {
 
     // Use signature from a different key pair
     let (wrong_signing_key, _wrong_verifying_key) = generate_test_keypair();
-    let wrong_signature = create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &wrong_signing_key);
+    let wrong_signature =
+        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &wrong_signing_key);
 
     let msg = ExecuteMsg::Claim {
         claim,
@@ -436,11 +440,11 @@ fn test_claim_wrong_signature() {
 #[test]
 fn test_claim_already_claimed() {
     let mut app = App::default();
-    
+
     // Generate key pair for verifier
     let (signing_key, verifying_key) = generate_test_keypair();
     let verifier_pubkey = pubkey_to_hex(&verifying_key);
-    
+
     let contract_addr = setup_contract(&mut app, Some(verifier_pubkey));
     let user1 = "user1".into_addr();
 
@@ -463,7 +467,8 @@ fn test_claim_already_claimed() {
     };
 
     // Generate valid signature
-    let signature = create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+    let signature =
+        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
 
     // First claim should succeed
     let msg = ExecuteMsg::Claim {
@@ -477,10 +482,7 @@ fn test_claim_already_claimed() {
     assert!(res.is_ok());
 
     // Second claim with same signature should fail
-    let msg = ExecuteMsg::Claim {
-        claim,
-        signature,
-    };
+    let msg = ExecuteMsg::Claim { claim, signature };
     let res = app.execute_contract(user1, contract_addr, &msg, &[]);
     assert!(res.is_err());
 }
@@ -515,12 +517,7 @@ fn test_digest_computation_consistency() {
 
     let digest2: GetClaimDigestResponse = app
         .wrap()
-        .query_wasm_smart(
-            contract_addr,
-            &QueryMsg::GetClaimDigest {
-                claim: claim2,
-            },
-        )
+        .query_wasm_smart(contract_addr, &QueryMsg::GetClaimDigest { claim: claim2 })
         .unwrap();
 
     // Same claim should produce same digest
@@ -557,20 +554,13 @@ fn test_digest_different_claims() {
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
-            &QueryMsg::GetClaimDigest {
-                claim: claim1,
-            },
+            &QueryMsg::GetClaimDigest { claim: claim1 },
         )
         .unwrap();
 
     let digest2: GetClaimDigestResponse = app
         .wrap()
-        .query_wasm_smart(
-            contract_addr,
-            &QueryMsg::GetClaimDigest {
-                claim: claim2,
-            },
-        )
+        .query_wasm_smart(contract_addr, &QueryMsg::GetClaimDigest { claim: claim2 })
         .unwrap();
 
     // Different claims should produce different digests
@@ -580,11 +570,11 @@ fn test_digest_different_claims() {
 #[test]
 fn test_claim_with_deadline() {
     let mut app = App::default();
-    
+
     // Generate key pair for verifier
     let (signing_key, verifying_key) = generate_test_keypair();
     let verifier_pubkey = pubkey_to_hex(&verifying_key);
-    
+
     let contract_addr = setup_contract(&mut app, Some(verifier_pubkey));
     let user1 = "user1".into_addr();
 
@@ -607,12 +597,10 @@ fn test_claim_with_deadline() {
     };
 
     // Generate valid signature
-    let signature = create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+    let signature =
+        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
 
-    let msg = ExecuteMsg::Claim {
-        claim,
-        signature,
-    };
+    let msg = ExecuteMsg::Claim { claim, signature };
     let res = app.execute_contract(user1, contract_addr, &msg, &[]);
     assert!(res.is_ok());
 }

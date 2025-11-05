@@ -24,6 +24,6 @@ tiny-keccak = { version = "2", features = ["keccak"] }
 
 [dev-dependencies]
 cw-multi-test = { git = "https://github.com/CosmWasm/cw-multi-test", tag = "v2.5.1", features = ["cosmwasm_2_2"] }
-k256 = { version = "0.13", features = ["ecdsa"] }
+secp256k1 = { version = "0.28", features = ["rand"] }
 rand = "0.8"
 
