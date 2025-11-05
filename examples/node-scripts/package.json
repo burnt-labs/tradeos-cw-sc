@@ -1,0 +1,28 @@
+{
+  "name": "tradeos-node-scripts",
+  "version": "1.0.0",
+  "description": "Node.js TypeScript scripts for interacting with TradeOS smart contract on XION",
+  "main": "index.js",
+  "scripts": {
+    "claim": "ts-node src/claim.ts",
+    "set-verifier": "ts-node src/setVerifier.ts",
+    "transfer-ownership": "ts-node src/transferOwnership.ts",
+    "query-config": "ts-node src/queryConfig.ts",
+    "query-claim-digest": "ts-node src/queryClaimDigest.ts",
+    "query-is-claimed": "ts-node src/queryIsClaimed.ts"
+  },
+  "dependencies": {
+    "@cosmjs/cosmwasm-stargate": "^0.36.0",
+    "@cosmjs/proto-signing": "^0.36.0",
+    "@cosmjs/stargate": "^0.36.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.2.2"
+  },
+  "author": "",
+  "license": "ISC"
+}
+
