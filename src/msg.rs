@@ -62,3 +62,6 @@ pub struct ConfigResponse {
     pub owner: String,
     pub verifier_pubkey_hex: String,
 }
+
+#[cw_serde]
+pub struct MigrateMsg {}

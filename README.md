@@ -12,14 +12,17 @@ This is the Cosmwasm Smart Contract for the TradeOS project.
 
 ### Contract Details
 
-- **Deployed Code ID**: `1792`
+- **Deployed Code ID**: `1794`
+- **Contract Address**: `xion1klcchukh5x62kr2v9cwkfd6edspu2x9jw7054pyf64gddn76havsajxpj5`
+- **Owner**: `xion1epzznazp28up4asses7jdcyqnw3n8lu7f5g9xs` (tbh-test)
+- **Verifier Pubkey**: `0x93865a37af13405ba2f78197d1a0daabd827d4f8907ae754a9c2c9bb9eedd6703b`
 
 ### Instantiate Contract
 
 1. **Instantiate Contract**
 
    ```bash
-   CODE_ID="1792"
+   CODE_ID="1794"
    MSG='{"owner":null,"verifier_pubkey":"0x93865a37af13405ba2f78197d1a0daabd827d4f8907ae754a9c2c9bb9eedd6703b"}'
    xiond tx wasm instantiate $CODE_ID "$MSG" \
      --from $WALLET \
@@ -44,7 +47,7 @@ This is the Cosmwasm Smart Contract for the TradeOS project.
 ### Query Contract
 
 ```bash
-CONTRACT="xion1tg3x833n3qmccpzde32mw093vsr6eltgrxzvy5rjk2ehmf8u6hdqzyh58l"
+CONTRACT="xion1klcchukh5x62kr2v9cwkfd6edspu2x9jw7054pyf64gddn76havsajxpj5"
 
 # Query config
 QUERY='{"config":{}}'
@@ -68,7 +71,7 @@ xiond query wasm contract-state smart $CONTRACT "$QUERY" \
 ### Execute Transactions
 
 ```bash
-CONTRACT="xion1tg3x833n3qmccpzde32mw093vsr6eltgrxzvy5rjk2ehmf8u6hdqzyh58l"
+CONTRACT="xion1klcchukh5x62kr2v9cwkfd6edspu2x9jw7054pyf64gddn76havsajxpj5"
 WALLET="your-wallet-name"
 
 # Claim
@@ -116,10 +119,33 @@ xiond tx wasm execute $CONTRACT "$EXECUTE" \
   --chain-id xion-testnet-2
 ```
 
+### Migrate Contract
+
+The contract supports migration to upgrade the contract code while preserving the contract state.
+
+```bash
+CONTRACT="xion1klcchukh5x62kr2v9cwkfd6edspu2x9jw7054pyf64gddn76havsajxpj5"
+WALLET="your-wallet-name"
+NEW_CODE_ID="<new-code-id>"
+MSG='{}'
+
+xiond tx wasm migrate $CONTRACT $NEW_CODE_ID "$MSG" \
+  --from $WALLET \
+  --gas-prices 0.025uxion \
+  --gas auto \
+  --gas-adjustment 1.3 \
+  -y \
+  --chain-id xion-testnet-2 \
+  --node https://rpc.xion-testnet-2.burnt.com:443
+```
+
+**Note**: Migration requires the contract admin/owner permission. The new code must have a `migrate` entry point implemented.
+
 ### Notes
 
 - The current `verifier_pubkey` is a test key. You can update it using the `SetVerifier` execute message if needed.
 - The contract owner can update the verifier pubkey, transfer ownership, and perform emergency withdrawals.
+- Code ID 1794 includes migration support, allowing future upgrades without redeploying.
 
 ## Demo Applications
 

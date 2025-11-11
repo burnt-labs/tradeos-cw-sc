@@ -1,4 +1,4 @@
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 use cosmwasm_std::entry_point;
 
@@ -28,5 +28,15 @@ pub fn execute(
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     crate::query::query(deps, env, msg)
+}
+
+// Migrate entrypoint
+#[entry_point]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    _msg: MigrateMsg,
+) -> Result<Response, crate::error::ContractError> {
+    crate::execute::migrate(deps, _msg)
 }
 

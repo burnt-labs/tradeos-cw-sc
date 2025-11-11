@@ -1,13 +1,13 @@
 use crate::error::ContractError;
 use crate::helpers::{decode_hex_or_b64, get_claim_info_hash, to_eth_signed_message_hash};
-use crate::msg::{AssetInfo, ClaimInfo, ExecuteMsg, InstantiateMsg};
+use crate::msg::{AssetInfo, ClaimInfo, ExecuteMsg, InstantiateMsg, MigrateMsg};
 use crate::state::{CLAIMED, OWNER, VERIFIER_PUBKEY};
 use crate::{CONTRACT_NAME, CONTRACT_VERSION};
 use cosmwasm_std::{
     to_json_binary, Addr, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
     Uint128, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ExecuteMsg;
 
 fn ensure_owner(storage: &dyn cosmwasm_std::Storage, sender: &Addr) -> Result<(), ContractError> {
@@ -191,7 +191,9 @@ fn exec_claim(
     }
     let pk = VERIFIER_PUBKEY.load(deps.storage)?;
     // Verify signature against ethSignedMessageHash (matching Solidity behavior)
-    let ok = deps.api.secp256k1_verify(&eth_signed_message_hash, &sig, &pk)?;
+    let ok = deps
+        .api
+        .secp256k1_verify(&eth_signed_message_hash, &sig, &pk)?;
     if !ok {
         return Err(ContractError::InvalidSignature);
     }
@@ -239,5 +241,32 @@ fn exec_claim(
         .add_attribute("to", to_addr.to_string())
         .add_attribute("value", claim.value.to_string())
         .add_attribute("claim_info_hash", hex::encode(claim_info_hash))
-        .add_attribute("eth_signed_message_hash", hex::encode(eth_signed_message_hash)))
+        .add_attribute(
+            "eth_signed_message_hash",
+            hex::encode(eth_signed_message_hash),
+        ))
+}
+
+// ---------------------------
+// Migration
+// ---------------------------
+
+pub fn migrate(deps: DepsMut, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    // Verify that we're migrating from the same contract
+    if contract_version.contract != CONTRACT_NAME {
+        return Err(ContractError::Std(StdError::generic_err(format!(
+            "Cannot migrate from {} to {}",
+            contract_version.contract, CONTRACT_NAME
+        ))));
+    }
+
+    // Update contract version
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "migrate")
+        .add_attribute("from_version", contract_version.version)
+        .add_attribute("to_version", CONTRACT_VERSION))
 }
