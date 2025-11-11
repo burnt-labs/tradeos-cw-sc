@@ -620,3 +620,186 @@ fn test_set_verifier_invalid_pubkey_length() {
     let res = app.execute_contract(admin, contract_addr, &msg, &[]);
     assert!(res.is_err());
 }
+
+#[test]
+fn test_claim_native_token_uusdc() {
+    let mut app = App::default();
+
+    // Generate key pair for verifier
+    let (signing_key, verifying_key) = generate_test_keypair();
+    let verifier_pubkey = pubkey_to_hex(&verifying_key);
+
+    let contract_addr = setup_contract(&mut app, Some(verifier_pubkey));
+    let user1 = "user1".into_addr();
+
+    // Fund the contract with uusdc
+    app.init_modules(|router, _api, storage| {
+        router
+            .bank
+            .init_balance(storage, &contract_addr, cosmwasm_std::coins(10000, "uusdc"))
+            .unwrap();
+    });
+
+    let claim = ClaimInfo {
+        asset: AssetInfo::Native {
+            denom: "uusdc".to_string(),
+        },
+        to: user1.to_string(),
+        value: Uint128::from(1000u128),
+        deadline: 0,
+        comment: "test claim uusdc".to_string(),
+    };
+
+    // Generate valid signature
+    let signature =
+        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+
+    let msg = ExecuteMsg::Claim {
+        claim: claim.clone(),
+        signature,
+    };
+    let res = app.execute_contract(user1.clone(), contract_addr.clone(), &msg, &[]);
+    assert!(res.is_ok(), "Claim should succeed for uusdc");
+
+    // Verify the claim was marked as claimed
+    let digest_response: GetClaimDigestResponse = app
+        .wrap()
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::GetClaimDigest { claim })
+        .unwrap();
+
+    let is_claimed: ClaimedResponse = app
+        .wrap()
+        .query_wasm_smart(
+            contract_addr,
+            &QueryMsg::IsClaimed {
+                digest_hex: digest_response.digest_hex,
+            },
+        )
+        .unwrap();
+
+    assert!(is_claimed.claimed);
+}
+
+#[test]
+fn test_claim_cw20_token_success() {
+    use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20Coin, Cw20QueryMsg};
+    use cw_multi_test::{Contract, ContractWrapper};
+
+    let mut app = App::default();
+
+    // Generate key pair for verifier
+    let (signing_key, verifying_key) = generate_test_keypair();
+    let verifier_pubkey = pubkey_to_hex(&verifying_key);
+
+    let contract_addr = setup_contract(&mut app, Some(verifier_pubkey));
+    let user1 = "user1".into_addr();
+    let admin = "admin".into_addr();
+
+    // Create a simple CW20 contract wrapper
+    fn cw20_contract() -> Box<dyn Contract<cosmwasm_std::Empty>> {
+        let contract = ContractWrapper::new(
+            cw20_base::contract::execute,
+            cw20_base::contract::instantiate,
+            cw20_base::contract::query,
+        );
+        Box::new(contract)
+    }
+
+    // Deploy CW20 token
+    let cw20_code_id = app.store_code(cw20_contract());
+    let cw20_addr = app
+        .instantiate_contract(
+            cw20_code_id,
+            admin.clone(),
+            &cw20_base::msg::InstantiateMsg {
+                name: "Test Token".to_string(),
+                symbol: "TEST".to_string(),
+                decimals: 6,
+                initial_balances: vec![Cw20Coin {
+                    address: contract_addr.to_string(),
+                    amount: Uint128::from(10000u128),
+                }],
+                mint: None,
+                marketing: None,
+            },
+            &[],
+            "test-token",
+            None,
+        )
+        .unwrap();
+
+    // Verify contract has CW20 tokens
+    let balance: Cw20BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            cw20_addr.clone(),
+            &Cw20QueryMsg::Balance {
+                address: contract_addr.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(balance.balance, Uint128::from(10000u128));
+
+    let claim = ClaimInfo {
+        asset: AssetInfo::Cw20 {
+            contract: cw20_addr.to_string(),
+        },
+        to: user1.to_string(),
+        value: Uint128::from(1000u128),
+        deadline: 0,
+        comment: "test claim cw20".to_string(),
+    };
+
+    // Generate valid signature
+    let signature =
+        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+
+    let msg = ExecuteMsg::Claim {
+        claim: claim.clone(),
+        signature,
+    };
+    let res = app.execute_contract(user1.clone(), contract_addr.clone(), &msg, &[]);
+    assert!(res.is_ok(), "Claim should succeed for CW20 token");
+
+    // Verify user1 received the tokens
+    let user_balance: Cw20BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            cw20_addr.clone(),
+            &Cw20QueryMsg::Balance {
+                address: user1.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(user_balance.balance, Uint128::from(1000u128));
+
+    // Verify contract balance decreased
+    let contract_balance: Cw20BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            cw20_addr,
+            &Cw20QueryMsg::Balance {
+                address: contract_addr.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(contract_balance.balance, Uint128::from(9000u128));
+
+    // Verify the claim was marked as claimed
+    let digest_response: GetClaimDigestResponse = app
+        .wrap()
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::GetClaimDigest { claim })
+        .unwrap();
+
+    let is_claimed: ClaimedResponse = app
+        .wrap()
+        .query_wasm_smart(
+            contract_addr,
+            &QueryMsg::IsClaimed {
+                digest_hex: digest_response.digest_hex,
+            },
+        )
+        .unwrap();
+
+    assert!(is_claimed.claimed);
+}

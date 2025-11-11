@@ -61,9 +61,9 @@ pub fn create_claim_with_signature(
     use tradeos_cw_sc::msg::AssetInfo;
     use tiny_keccak::{Hasher, Keccak};
     
-    // Token identifier
+    // Token identifier: denom string for native, contract address string for cw20
     let token_bytes = match &claim.asset {
-        AssetInfo::Native { .. } => vec![],
+        AssetInfo::Native { denom } => denom.as_bytes().to_vec(),
         AssetInfo::Cw20 { contract } => contract.as_bytes().to_vec(),
     };
     

@@ -34,11 +34,11 @@ pub fn parse_hex_32(s: &str) -> StdResult<[u8; 32]> {
 /// Compute claimInfoHash: keccak256(abi.encodePacked(token, to, value, deadline, comment, address(this), chainid))
 /// Uses bech32 addresses directly as bytes (no conversion to Ethereum address format)
 pub fn get_claim_info_hash(env: &Env, claim: &ClaimInfo) -> [u8; 32] {
-    // Token identifier: empty bytes for native, contract address string for cw20
+    // Token identifier: denom string for native, contract address string for cw20
     let token_bytes = match &claim.asset {
-        AssetInfo::Native { .. } => {
-            // Empty bytes for native token
-            vec![]
+        AssetInfo::Native { denom } => {
+            // Use denom string as bytes for native token
+            denom.as_bytes().to_vec()
         }
         AssetInfo::Cw20 { contract } => {
             // Use contract address string directly as bytes
