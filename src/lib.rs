@@ -3,6 +3,7 @@ pub mod msg;
 pub mod state;
 pub mod error;
 pub mod query;
+pub mod helpers;
 
 // Only include contract.rs (which now hosts the entrypoints) when not building as a library
 #[cfg(not(feature = "library"))]

@@ -1,50 +1,14 @@
 use crate::error::ContractError;
-use crate::msg::{AssetInfo, ClaimInfo, ExecuteMsg, InstantiateMsg};
+use crate::helpers::{decode_hex_or_b64, get_claim_info_hash, to_eth_signed_message_hash};
+use crate::msg::{AssetInfo, ClaimInfo, ExecuteMsg, InstantiateMsg, MigrateMsg};
 use crate::state::{CLAIMED, OWNER, VERIFIER_PUBKEY};
 use crate::{CONTRACT_NAME, CONTRACT_VERSION};
 use cosmwasm_std::{
     to_json_binary, Addr, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
     Uint128, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ExecuteMsg;
-
-// ---------------------------
-// Helpers
-// ---------------------------
-
-fn decode_hex_or_b64(s: &str) -> Result<Vec<u8>, ()> {
-    let t = s.trim();
-    if t.starts_with("0x") || t.starts_with("0X") {
-        return hex::decode(&t[2..]).map_err(|_| ());
-    }
-    // Use base64 engine for decoding
-    use base64::Engine;
-    base64::engine::general_purpose::STANDARD
-        .decode(t)
-        .map_err(|_| ())
-}
-
-fn digest_for_claim(env: &Env, claim: &ClaimInfo) -> [u8; 32] {
-    use crate::msg::SignableClaimV1;
-    use sha2::{Digest, Sha256};
-    let signable = SignableClaimV1 {
-        asset: claim.asset.clone(),
-        to: claim.to.clone(),
-        value: claim.value,
-        deadline: claim.deadline,
-        comment: claim.comment.clone(),
-        contract_addr: env.contract.address.as_str().to_string(),
-        chain_id: env.block.chain_id.clone(),
-    };
-    let bytes = to_json_binary(&signable).expect("serialize SignableClaimV1");
-    let mut hasher = Sha256::new();
-    hasher.update(&bytes);
-    let hash = hasher.finalize();
-    let mut arr = [0u8; 32];
-    arr.copy_from_slice(&hash);
-    arr
-}
 
 fn ensure_owner(storage: &dyn cosmwasm_std::Storage, sender: &Addr) -> Result<(), ContractError> {
     let owner = OWNER.load(storage)?;
@@ -201,15 +165,23 @@ fn exec_claim(
         return Err(ContractError::SignatureExpired);
     }
 
-    // Compute digest
-    let digest = digest_for_claim(&env, &claim);
+    // Compute claimInfoHash (same as Solidity's getClaimInfoHash)
+    let claim_info_hash = get_claim_info_hash(&env, &claim);
 
-    // Replay protection
-    if CLAIMED.may_load(deps.storage, &digest)?.unwrap_or(false) {
+    // Apply EIP-191 prefix (same as Solidity's toEthSignedMessageHash())
+    let eth_signed_message_hash = to_eth_signed_message_hash(&claim_info_hash);
+
+    // Replay protection - store ethSignedMessageHash (matching Solidity behavior)
+    if CLAIMED
+        .may_load(deps.storage, &eth_signed_message_hash)?
+        .unwrap_or(false)
+    {
         return Err(ContractError::AlreadyClaimed);
     }
 
     // Verify signature against stored pubkey
+    // Note: In Solidity, we use recover() to get the signer address, then compare with verifier
+    // In CosmWasm, we verify the signature directly against the stored pubkey
     let mut sig = decode_hex_or_b64(&signature).map_err(|_| ContractError::InvalidSignature)?;
     if sig.len() == 65 {
         sig.truncate(64); // drop v if provided
@@ -218,13 +190,16 @@ fn exec_claim(
         return Err(ContractError::InvalidSignature);
     }
     let pk = VERIFIER_PUBKEY.load(deps.storage)?;
-    let ok = deps.api.secp256k1_verify(&digest, &sig, &pk)?;
+    // Verify signature against ethSignedMessageHash (matching Solidity behavior)
+    let ok = deps
+        .api
+        .secp256k1_verify(&eth_signed_message_hash, &sig, &pk)?;
     if !ok {
         return Err(ContractError::InvalidSignature);
     }
 
-    // Mark claimed then transfer
-    CLAIMED.save(deps.storage, &digest, &true)?;
+    // Mark claimed using ethSignedMessageHash (matching Solidity behavior)
+    CLAIMED.save(deps.storage, &eth_signed_message_hash, &true)?;
 
     let transfer_msg: CosmosMsg = match &claim.asset {
         AssetInfo::Native { denom } => {
@@ -265,5 +240,33 @@ fn exec_claim(
         )
         .add_attribute("to", to_addr.to_string())
         .add_attribute("value", claim.value.to_string())
-        .add_attribute("digest_hex", hex::encode(digest)))
+        .add_attribute("claim_info_hash", hex::encode(claim_info_hash))
+        .add_attribute(
+            "eth_signed_message_hash",
+            hex::encode(eth_signed_message_hash),
+        ))
+}
+
+// ---------------------------
+// Migration
+// ---------------------------
+
+pub fn migrate(deps: DepsMut, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    // Verify that we're migrating from the same contract
+    if contract_version.contract != CONTRACT_NAME {
+        return Err(ContractError::Std(StdError::generic_err(format!(
+            "Cannot migrate from {} to {}",
+            contract_version.contract, CONTRACT_NAME
+        ))));
+    }
+
+    // Update contract version
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "migrate")
+        .add_attribute("from_version", contract_version.version)
+        .add_attribute("to_version", CONTRACT_VERSION))
 }

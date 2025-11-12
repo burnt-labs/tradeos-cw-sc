@@ -63,16 +63,5 @@ pub struct ConfigResponse {
     pub verifier_pubkey_hex: String,
 }
 
-// Internal, deterministic struct we hash and sign.
 #[cw_serde]
-pub struct SignableClaimV1 {
-    pub asset: AssetInfo,
-    pub to: String,
-    pub value: Uint128,
-    pub deadline: u64,
-    pub comment: String,
-    // domain-separation to prevent cross-contract/chain replay
-    pub contract_addr: String,
-    pub chain_id: String,
-}
-
+pub struct MigrateMsg {}
