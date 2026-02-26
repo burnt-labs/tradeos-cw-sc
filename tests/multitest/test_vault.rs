@@ -281,7 +281,10 @@ fn test_emergency_withdraw_zero_value_cw20_rejected() {
     };
 
     let res = app.execute_contract(admin, contract_addr, &msg, &[]);
-    assert!(res.is_err(), "zero-value emergency withdraw must be rejected");
+    assert!(
+        res.is_err(),
+        "zero-value emergency withdraw must be rejected"
+    );
 }
 
 #[test]
