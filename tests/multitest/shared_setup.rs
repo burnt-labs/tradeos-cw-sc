@@ -87,15 +87,21 @@ pub fn create_claim_with_signature(
     // Chain ID: string as bytes
     let chain_id_bytes = block_info.chain_id.as_bytes();
     
-    // abi.encodePacked equivalent: concatenate all values
+    // Length-prefix variable-width fields to match contract hashing.
     let mut packed = Vec::new();
-    packed.extend_from_slice(&token_bytes);
-    packed.extend_from_slice(to_bytes);
+    let append_len_prefixed = |dst: &mut Vec<u8>, bytes: &[u8]| {
+        let len = bytes.len() as u32;
+        dst.extend_from_slice(&len.to_be_bytes());
+        dst.extend_from_slice(bytes);
+    };
+
+    append_len_prefixed(&mut packed, &token_bytes);
+    append_len_prefixed(&mut packed, to_bytes);
     packed.extend_from_slice(&value_bytes_vec);
     packed.extend_from_slice(&deadline_bytes);
-    packed.extend_from_slice(comment_bytes);
-    packed.extend_from_slice(contract_bytes);
-    packed.extend_from_slice(chain_id_bytes);
+    append_len_prefixed(&mut packed, comment_bytes);
+    append_len_prefixed(&mut packed, contract_bytes);
+    append_len_prefixed(&mut packed, chain_id_bytes);
     
     // keccak256 hash
     let mut hasher = Keccak::v256();
