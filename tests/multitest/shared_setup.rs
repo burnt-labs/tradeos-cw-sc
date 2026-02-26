@@ -32,16 +32,16 @@ pub fn pubkey_to_hex(pk: &PublicKey) -> String {
 // secp256k1 crate produces compact format compatible with cosmwasm-std
 pub fn sign_message_hash(signing_key: &SecretKey, message_hash: &[u8; 32]) -> String {
     use secp256k1::{Message, Secp256k1};
-    
+
     // Create secp256k1 context and sign
     let secp = Secp256k1::new();
-    let message = Message::from_digest_slice(message_hash)
-        .expect("Failed to create message from hash");
-    
+    let message =
+        Message::from_digest_slice(message_hash).expect("Failed to create message from hash");
+
     // Sign with secp256k1 (this produces compact format compatible with cosmwasm-std)
     let signature = secp.sign_ecdsa(&message, signing_key);
     let sig_bytes = signature.serialize_compact();
-    
+
     format!("0x{}", hex::encode(sig_bytes))
 }
 
@@ -55,38 +55,38 @@ pub fn create_claim_with_signature(
     signing_key: &SecretKey,
 ) -> String {
     let block_info = app.block_info();
-    
+
     // Compute claim info hash manually to avoid type conversion issues
     // Use tiny-keccak to match the contract's implementation
-    use tradeos_cw_sc::msg::AssetInfo;
     use tiny_keccak::{Hasher, Keccak};
-    
+    use tradeos_cw_sc::msg::AssetInfo;
+
     // Token identifier: denom string for native, contract address string for cw20
     let token_bytes = match &claim.asset {
         AssetInfo::Native { denom } => denom.as_bytes().to_vec(),
         AssetInfo::Cw20 { contract } => contract.as_bytes().to_vec(),
     };
-    
+
     // To address
     let to_bytes = claim.to.as_bytes();
-    
+
     // Value: 32-byte big-endian
     let value_bytes = claim.value.to_be_bytes();
     let mut value_bytes_vec = vec![0u8; 32];
     value_bytes_vec[32 - value_bytes.len()..].copy_from_slice(&value_bytes);
-    
+
     // Deadline: 8-byte (u64) big-endian
     let deadline_bytes = claim.deadline.to_be_bytes();
-    
+
     // Comment: string as bytes
     let comment_bytes = claim.comment.as_bytes();
-    
+
     // Contract address: use bech32 address string directly as bytes
     let contract_bytes = contract_addr.as_bytes();
-    
+
     // Chain ID: string as bytes
     let chain_id_bytes = block_info.chain_id.as_bytes();
-    
+
     // Length-prefix variable-width fields to match contract hashing.
     let mut packed = Vec::new();
     let append_len_prefixed = |dst: &mut Vec<u8>, bytes: &[u8]| {
@@ -102,16 +102,16 @@ pub fn create_claim_with_signature(
     append_len_prefixed(&mut packed, comment_bytes);
     append_len_prefixed(&mut packed, contract_bytes);
     append_len_prefixed(&mut packed, chain_id_bytes);
-    
+
     // keccak256 hash
     let mut hasher = Keccak::v256();
     hasher.update(&packed);
     let mut claim_info_hash = [0u8; 32];
     hasher.finalize(&mut claim_info_hash);
-    
+
     // Apply EIP-191 prefix
     let eth_signed_message_hash = to_eth_signed_message_hash(&claim_info_hash);
-    
+
     // Sign the message hash
     sign_message_hash(signing_key, &eth_signed_message_hash)
 }
@@ -168,14 +168,13 @@ pub fn setup_contract(app: &mut App, verifier_pubkey: Option<String>) -> Addr {
         }),
     };
 
-    app
-        .instantiate_contract(
-            contract_id,
-            admin.clone(),
-            &msg,
-            &[],
-            "tradeos-vault",
-            Some(admin.to_string()),
-        )
-        .unwrap()
+    app.instantiate_contract(
+        contract_id,
+        admin.clone(),
+        &msg,
+        &[],
+        "tradeos-vault",
+        Some(admin.to_string()),
+    )
+    .unwrap()
 }

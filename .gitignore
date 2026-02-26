@@ -20,8 +20,6 @@ artifacts/
 .DS_Store
 node_modules/
 .env
-# Cargo
-Cargo.lock
 # Byproducts
 *.log
 # IDEs
