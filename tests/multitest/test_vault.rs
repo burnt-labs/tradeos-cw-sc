@@ -1,5 +1,6 @@
 use cosmwasm_std::Uint128;
 use cw_multi_test::{App, Executor, IntoAddr};
+use cw_ownable::Action;
 use tradeos_cw_sc::msg::{
     AssetInfo, ClaimInfo, ClaimedResponse, ConfigResponse, ExecuteMsg, GetClaimDigestResponse,
     QueryMsg,
@@ -146,29 +147,68 @@ fn test_transfer_ownership() {
     let admin = "admin".into_addr();
     let user1 = "user1".into_addr();
 
-    // Owner can transfer ownership
-    let msg = ExecuteMsg::TransferOwnership {
+    // Owner proposes ownership transfer
+    let msg = ExecuteMsg::UpdateOwnership(Action::TransferOwnership {
         new_owner: user1.to_string(),
-    };
+        expiry: None,
+    });
     let res = app.execute_contract(admin.clone(), contract_addr.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    // Verify ownership was transferred
+    // Ownership should remain with current owner until acceptance.
     let config: ConfigResponse = app
         .wrap()
         .query_wasm_smart(contract_addr.clone(), &QueryMsg::Config {})
         .unwrap();
+    assert_eq!(config.owner, admin.to_string());
 
-    assert_eq!(config.owner, user1.to_string());
-
-    // New owner can now perform owner operations
+    // Proposed owner cannot perform owner actions before acceptance.
     let (_signing_key, verifying_key) = generate_test_keypair();
     let new_pubkey = pubkey_to_hex(&verifying_key);
+    let msg = ExecuteMsg::SetVerifier {
+        verifier_pubkey: new_pubkey.clone(),
+    };
+    let res = app.execute_contract(user1.clone(), contract_addr.clone(), &msg, &[]);
+    assert!(res.is_err());
+
+    // Proposed owner accepts ownership.
+    let msg = ExecuteMsg::UpdateOwnership(Action::AcceptOwnership);
+    let res = app.execute_contract(user1.clone(), contract_addr.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    // Verify ownership was transferred after acceptance.
+    let config: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(config.owner, user1.to_string());
+
+    // New owner can now perform owner operations.
     let msg = ExecuteMsg::SetVerifier {
         verifier_pubkey: new_pubkey,
     };
     let res = app.execute_contract(user1, contract_addr, &msg, &[]);
     assert!(res.is_ok());
+}
+
+#[test]
+fn test_accept_ownership_unauthorized() {
+    let mut app = App::default();
+    let contract_addr = setup_contract(&mut app, None);
+    let admin = "admin".into_addr();
+    let user1 = "user1".into_addr();
+    let user2 = "user2".into_addr();
+
+    let msg = ExecuteMsg::UpdateOwnership(Action::TransferOwnership {
+        new_owner: user1.to_string(),
+        expiry: None,
+    });
+    let res = app.execute_contract(admin, contract_addr.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let msg = ExecuteMsg::UpdateOwnership(Action::AcceptOwnership);
+    let res = app.execute_contract(user2, contract_addr, &msg, &[]);
+    assert!(res.is_err());
 }
 
 #[test]
@@ -179,9 +219,10 @@ fn test_transfer_ownership_unauthorized() {
     let user2 = "user2".into_addr();
 
     // Non-owner cannot transfer ownership
-    let msg = ExecuteMsg::TransferOwnership {
+    let msg = ExecuteMsg::UpdateOwnership(Action::TransferOwnership {
         new_owner: user2.to_string(),
-    };
+        expiry: None,
+    });
     let res = app.execute_contract(user1, contract_addr, &msg, &[]);
     assert!(res.is_err());
 }

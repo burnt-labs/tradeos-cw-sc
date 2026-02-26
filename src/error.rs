@@ -19,4 +19,6 @@ pub enum ContractError {
     AlreadyClaimed,
     #[error("Verifier pubkey must be 33 bytes (compressed)")]
     BadPublicKeyLength,
+    #[error("{0}")]
+    Ownership(#[from] cw_ownable::OwnershipError),
 }

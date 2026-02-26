@@ -1,22 +1,15 @@
 use crate::error::ContractError;
 use crate::helpers::{decode_hex_or_b64, get_claim_info_hash, to_eth_signed_message_hash};
 use crate::msg::{AssetInfo, ClaimInfo, ExecuteMsg, InstantiateMsg, MigrateMsg};
-use crate::state::{CLAIMED, OWNER, VERIFIER_PUBKEY};
+use crate::state::{CLAIMED, VERIFIER_PUBKEY};
 use crate::{CONTRACT_NAME, CONTRACT_VERSION};
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
+    to_json_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
     Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ExecuteMsg;
-
-fn ensure_owner(storage: &dyn cosmwasm_std::Storage, sender: &Addr) -> Result<(), ContractError> {
-    let owner = OWNER.load(storage)?;
-    if owner != *sender {
-        return Err(ContractError::Unauthorized);
-    }
-    Ok(())
-}
+use cw_ownable::{assert_owner, initialize_owner, update_ownership, Action};
 
 // ---------------------------
 // Entry points
@@ -28,11 +21,8 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let owner = match msg.owner {
-        Some(o) => deps.api.addr_validate(&o)?,
-        None => info.sender.clone(),
-    };
-    OWNER.save(deps.storage, &owner)?;
+    let owner = msg.owner.unwrap_or_else(|| info.sender.to_string());
+    initialize_owner(deps.storage, deps.api, Some(owner.as_str()))?;
 
     let pk = decode_hex_or_b64(&msg.verifier_pubkey).map_err(|_| {
         ContractError::Std(StdError::generic_err("invalid verifier_pubkey encoding"))
@@ -55,12 +45,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::UpdateOwnership(action) => exec_update_ownership(deps, env, info, action),
         ExecuteMsg::Claim { claim, signature } => exec_claim(deps, env, claim, signature),
         ExecuteMsg::SetVerifier { verifier_pubkey } => {
             exec_set_verifier(deps, info, verifier_pubkey)
-        }
-        ExecuteMsg::TransferOwnership { new_owner } => {
-            exec_transfer_ownership(deps, info, new_owner)
         }
         ExecuteMsg::EmergencyWithdraw { asset, to, value } => {
             exec_emergency_withdraw(deps, info, asset, to, value)
@@ -68,12 +56,30 @@ pub fn execute(
     }
 }
 
+fn exec_update_ownership(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    action: Action,
+) -> Result<Response, ContractError> {
+    let action_name = match action {
+        Action::TransferOwnership { .. } => "transfer_ownership",
+        Action::AcceptOwnership => "accept_ownership",
+        Action::RenounceOwnership => "renounce_ownership",
+    };
+
+    update_ownership(deps, &env.block, &info.sender, action)?;
+    Ok(Response::new()
+        .add_attribute("action", "update_ownership")
+        .add_attribute("ownership_action", action_name))
+}
+
 fn exec_set_verifier(
     deps: DepsMut,
     info: MessageInfo,
     verifier_pubkey: String,
 ) -> Result<Response, ContractError> {
-    ensure_owner(deps.storage, &info.sender)?;
+    assert_owner(deps.storage, &info.sender)?;
     let pk = decode_hex_or_b64(&verifier_pubkey).map_err(|_| {
         ContractError::Std(StdError::generic_err("invalid verifier_pubkey encoding"))
     })?;
@@ -86,23 +92,6 @@ fn exec_set_verifier(
         .add_attribute("verifier_pubkey_len", pk.len().to_string()))
 }
 
-fn exec_transfer_ownership(
-    deps: DepsMut,
-    info: MessageInfo,
-    new_owner: String,
-) -> Result<Response, ContractError> {
-    ensure_owner(deps.storage, &info.sender)?;
-    let old_owner = OWNER.load(deps.storage)?;
-    let new_owner_addr = deps.api.addr_validate(&new_owner)?;
-
-    OWNER.save(deps.storage, &new_owner_addr)?;
-
-    Ok(Response::new()
-        .add_attribute("action", "transfer_ownership")
-        .add_attribute("old_owner", old_owner.to_string())
-        .add_attribute("new_owner", new_owner_addr.to_string()))
-}
-
 fn exec_emergency_withdraw(
     deps: DepsMut,
     info: MessageInfo,
@@ -110,7 +99,7 @@ fn exec_emergency_withdraw(
     to: String,
     value: Uint128,
 ) -> Result<Response, ContractError> {
-    ensure_owner(deps.storage, &info.sender)?;
+    assert_owner(deps.storage, &info.sender)?;
     if value.is_zero() {
         return Err(ContractError::InvalidValue);
     }
