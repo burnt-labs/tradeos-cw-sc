@@ -273,8 +273,7 @@ fn test_claim_native_token_success() {
     );
 
     // Generate valid signature
-    let signature =
-        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+    let signature = create_claim_with_signature(&app, contract_addr.as_ref(), &claim, &signing_key);
 
     // Verify signature format: should be 64 bytes (128 hex chars + "0x")
     let sig_bytes = hex::decode(&signature[2..]).unwrap();
@@ -427,7 +426,7 @@ fn test_claim_wrong_signature() {
     // Use signature from a different key pair
     let (wrong_signing_key, _wrong_verifying_key) = generate_test_keypair();
     let wrong_signature =
-        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &wrong_signing_key);
+        create_claim_with_signature(&app, contract_addr.as_ref(), &claim, &wrong_signing_key);
 
     let msg = ExecuteMsg::Claim {
         claim,
@@ -467,8 +466,7 @@ fn test_claim_already_claimed() {
     };
 
     // Generate valid signature
-    let signature =
-        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+    let signature = create_claim_with_signature(&app, contract_addr.as_ref(), &claim, &signing_key);
 
     // First claim should succeed
     let msg = ExecuteMsg::Claim {
@@ -597,8 +595,7 @@ fn test_claim_with_deadline() {
     };
 
     // Generate valid signature
-    let signature =
-        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+    let signature = create_claim_with_signature(&app, contract_addr.as_ref(), &claim, &signing_key);
 
     let msg = ExecuteMsg::Claim { claim, signature };
     let res = app.execute_contract(user1, contract_addr, &msg, &[]);
@@ -651,8 +648,7 @@ fn test_claim_native_token_uusdc() {
     };
 
     // Generate valid signature
-    let signature =
-        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+    let signature = create_claim_with_signature(&app, contract_addr.as_ref(), &claim, &signing_key);
 
     let msg = ExecuteMsg::Claim {
         claim: claim.clone(),
@@ -751,8 +747,7 @@ fn test_claim_cw20_token_success() {
     };
 
     // Generate valid signature
-    let signature =
-        create_claim_with_signature(&app, &contract_addr.to_string(), &claim, &signing_key);
+    let signature = create_claim_with_signature(&app, contract_addr.as_ref(), &claim, &signing_key);
 
     let msg = ExecuteMsg::Claim {
         claim: claim.clone(),

@@ -117,11 +117,20 @@ pub fn create_claim_with_signature(
 }
 
 // Contract wrapper for multitest
+fn instantiate_adapter(
+    deps: cosmwasm_std::DepsMut,
+    _env: cosmwasm_std::Env,
+    info: cosmwasm_std::MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<cosmwasm_std::Response, tradeos_cw_sc::error::ContractError> {
+    tradeos_cw_sc::execute::instantiate(deps, info, msg)
+}
+
 fn contract_vault() -> Box<dyn Contract<cosmwasm_std::Empty>> {
     let contract = ContractWrapper::new(
-        tradeos_cw_sc::contract::execute,
-        tradeos_cw_sc::contract::instantiate,
-        tradeos_cw_sc::contract::query,
+        tradeos_cw_sc::execute::execute,
+        instantiate_adapter,
+        tradeos_cw_sc::query::query,
     );
     Box::new(contract)
 }
@@ -159,7 +168,7 @@ pub fn setup_contract(app: &mut App, verifier_pubkey: Option<String>) -> Addr {
         }),
     };
 
-    let contract_addr = app
+    app
         .instantiate_contract(
             contract_id,
             admin.clone(),
@@ -168,7 +177,5 @@ pub fn setup_contract(app: &mut App, verifier_pubkey: Option<String>) -> Addr {
             "tradeos-vault",
             Some(admin.to_string()),
         )
-        .unwrap();
-
-    contract_addr
+        .unwrap()
 }

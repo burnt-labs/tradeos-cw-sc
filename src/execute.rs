@@ -12,7 +12,7 @@ use cw20::Cw20ExecuteMsg;
 
 fn ensure_owner(storage: &dyn cosmwasm_std::Storage, sender: &Addr) -> Result<(), ContractError> {
     let owner = OWNER.load(storage)?;
-    if &owner != sender {
+    if owner != *sender {
         return Err(ContractError::Unauthorized);
     }
     Ok(())

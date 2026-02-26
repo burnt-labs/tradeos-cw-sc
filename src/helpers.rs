@@ -2,17 +2,22 @@ use crate::msg::{AssetInfo, ClaimInfo};
 use cosmwasm_std::{Env, StdError, StdResult};
 use tiny_keccak::{Hasher, Keccak};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecodeError {
+    InvalidEncoding,
+}
+
 /// Decode hex or base64 string to bytes
-pub fn decode_hex_or_b64(s: &str) -> Result<Vec<u8>, ()> {
+pub fn decode_hex_or_b64(s: &str) -> Result<Vec<u8>, DecodeError> {
     let t = s.trim();
     if t.starts_with("0x") || t.starts_with("0X") {
-        return hex::decode(&t[2..]).map_err(|_| ());
+        return hex::decode(&t[2..]).map_err(|_| DecodeError::InvalidEncoding);
     }
     // Use base64 engine for decoding
     use base64::Engine;
     base64::engine::general_purpose::STANDARD
         .decode(t)
-        .map_err(|_| ())
+        .map_err(|_| DecodeError::InvalidEncoding)
 }
 
 /// Parse hex string to 32-byte array
