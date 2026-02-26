@@ -1,6 +1,6 @@
 use cosmwasm_std::Uint128;
 use cw_multi_test::{App, Executor, IntoAddr};
-use cw_ownable::Action;
+use cw_ownable::{Action, Ownership};
 use tradeos_cw_sc::msg::{
     AssetInfo, ClaimInfo, ClaimedResponse, ConfigResponse, ExecuteMsg, GetClaimDigestResponse,
     QueryMsg,
@@ -189,6 +189,46 @@ fn test_transfer_ownership() {
     };
     let res = app.execute_contract(user1, contract_addr, &msg, &[]);
     assert!(res.is_ok());
+}
+
+#[test]
+fn test_ownership_query_flow() {
+    let mut app = App::default();
+    let contract_addr = setup_contract(&mut app, None);
+    let admin = "admin".into_addr();
+    let user1 = "user1".into_addr();
+
+    let ownership: Ownership<String> = app
+        .wrap()
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::Ownership {})
+        .unwrap();
+    assert_eq!(ownership.owner, Some(admin.to_string()));
+    assert_eq!(ownership.pending_owner, None);
+
+    let msg = ExecuteMsg::UpdateOwnership(Action::TransferOwnership {
+        new_owner: user1.to_string(),
+        expiry: None,
+    });
+    let res = app.execute_contract(admin.clone(), contract_addr.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let ownership: Ownership<String> = app
+        .wrap()
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::Ownership {})
+        .unwrap();
+    assert_eq!(ownership.owner, Some(admin.to_string()));
+    assert_eq!(ownership.pending_owner, Some(user1.to_string()));
+
+    let msg = ExecuteMsg::UpdateOwnership(Action::AcceptOwnership);
+    let res = app.execute_contract(user1.clone(), contract_addr.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let ownership: Ownership<String> = app
+        .wrap()
+        .query_wasm_smart(contract_addr, &QueryMsg::Ownership {})
+        .unwrap();
+    assert_eq!(ownership.owner, Some(user1.to_string()));
+    assert_eq!(ownership.pending_owner, None);
 }
 
 #[test]
