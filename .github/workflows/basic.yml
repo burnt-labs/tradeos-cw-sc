@@ -41,7 +41,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.86.0
-          components: rustfmt, clippy
+
+      - name: Install rustfmt and clippy
+        run: rustup component add --toolchain 1.86.0 rustfmt clippy
 
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
