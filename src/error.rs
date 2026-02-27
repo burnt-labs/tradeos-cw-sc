@@ -20,4 +20,3 @@ pub enum ContractError {
     #[error("Verifier pubkey must be 33 bytes (compressed)")]
     BadPublicKeyLength,
 }
-

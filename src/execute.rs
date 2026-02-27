@@ -12,7 +12,7 @@ use cw20::Cw20ExecuteMsg;
 
 fn ensure_owner(storage: &dyn cosmwasm_std::Storage, sender: &Addr) -> Result<(), ContractError> {
     let owner = OWNER.load(storage)?;
-    if &owner != sender {
+    if owner != *sender {
         return Err(ContractError::Unauthorized);
     }
     Ok(())
@@ -111,6 +111,9 @@ fn exec_emergency_withdraw(
     value: Uint128,
 ) -> Result<Response, ContractError> {
     ensure_owner(deps.storage, &info.sender)?;
+    if value.is_zero() {
+        return Err(ContractError::InvalidValue);
+    }
     let to_addr = deps.api.addr_validate(&to)?;
 
     let msg: CosmosMsg = match asset {
