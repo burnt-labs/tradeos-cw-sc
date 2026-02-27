@@ -10,9 +10,9 @@ pub enum AssetInfo {
 #[cw_serde]
 pub struct ClaimInfo {
     pub asset: AssetInfo,
-    pub to: String,          // bech32 on XION
+    pub to: String, // bech32 on XION
     pub value: Uint128,
-    pub deadline: u64,       // 0 = no deadline
+    pub deadline: u64, // 0 = no deadline
     pub comment: String,
 }
 
@@ -25,10 +25,21 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    Claim { claim: ClaimInfo, signature: String },
-    SetVerifier { verifier_pubkey: String },
-    TransferOwnership { new_owner: String },
-    EmergencyWithdraw { asset: AssetInfo, to: String, value: Uint128 },
+    Claim {
+        claim: ClaimInfo,
+        signature: String,
+    },
+    SetVerifier {
+        verifier_pubkey: String,
+    },
+    TransferOwnership {
+        new_owner: String,
+    },
+    EmergencyWithdraw {
+        asset: AssetInfo,
+        to: String,
+        value: Uint128,
+    },
 }
 
 #[cw_serde]

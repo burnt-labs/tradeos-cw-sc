@@ -1,6 +1,6 @@
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 use cosmwasm_std::entry_point;
+use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 // Instantiate entrypoint
 #[entry_point]
@@ -39,4 +39,3 @@ pub fn migrate(
 ) -> Result<Response, crate::error::ContractError> {
     crate::execute::migrate(deps, _msg)
 }
-
