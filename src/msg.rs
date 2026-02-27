@@ -1,5 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Uint128;
+use cw_ownable::{cw_ownable_execute, cw_ownable_query};
 
 #[cw_serde]
 pub enum AssetInfo {
@@ -23,6 +24,7 @@ pub struct InstantiateMsg {
     pub verifier_pubkey: String,
 }
 
+#[cw_ownable_execute]
 #[cw_serde]
 pub enum ExecuteMsg {
     Claim {
@@ -32,9 +34,6 @@ pub enum ExecuteMsg {
     SetVerifier {
         verifier_pubkey: String,
     },
-    TransferOwnership {
-        new_owner: String,
-    },
     EmergencyWithdraw {
         asset: AssetInfo,
         to: String,
@@ -42,6 +41,7 @@ pub enum ExecuteMsg {
     },
 }
 
+#[cw_ownable_query]
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
@@ -70,7 +70,7 @@ pub struct ClaimedResponse {
 
 #[cw_serde]
 pub struct ConfigResponse {
-    pub owner: String,
+    pub owner: Option<String>,
     pub verifier_pubkey_hex: String,
 }
 
