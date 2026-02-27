@@ -22,8 +22,9 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.86.0
+          toolchain: "1.86.0"
           targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
 
       - name: Run unit tests
         run: cargo test
@@ -40,7 +41,7 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.86.0
+          toolchain: "1.86.0"
           components: rustfmt, clippy
 
       - name: Run cargo fmt
