@@ -155,4 +155,40 @@ mod tests {
             "distinct claims must produce distinct hashes"
         );
     }
+
+    #[test]
+    fn claim_hash_collision_scenario_is_prevented() {
+        // Without length-prefixing, token||to would both become "abcdef":
+        // claim_a: token="abc", to="def"
+        // claim_b: token="ab",  to="cdef"
+        let env = mock_env();
+
+        let claim_a = ClaimInfo {
+            asset: AssetInfo::Native {
+                denom: "abc".to_string(),
+            },
+            to: "def".to_string(),
+            value: Uint128::new(42),
+            deadline: 1_700_000_000,
+            comment: "collision-test".to_string(),
+        };
+
+        let claim_b = ClaimInfo {
+            asset: AssetInfo::Native {
+                denom: "ab".to_string(),
+            },
+            to: "cdef".to_string(),
+            value: Uint128::new(42),
+            deadline: 1_700_000_000,
+            comment: "collision-test".to_string(),
+        };
+
+        let hash_a = get_claim_info_hash(&env, &claim_a);
+        let hash_b = get_claim_info_hash(&env, &claim_b);
+
+        assert_ne!(
+            hash_a, hash_b,
+            "claims that would collide under naive concatenation must remain distinct"
+        );
+    }
 }
