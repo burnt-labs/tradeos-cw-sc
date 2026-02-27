@@ -32,16 +32,16 @@ pub fn pubkey_to_hex(pk: &PublicKey) -> String {
 // secp256k1 crate produces compact format compatible with cosmwasm-std
 pub fn sign_message_hash(signing_key: &SecretKey, message_hash: &[u8; 32]) -> String {
     use secp256k1::{Message, Secp256k1};
-    
+
     // Create secp256k1 context and sign
     let secp = Secp256k1::new();
-    let message = Message::from_digest_slice(message_hash)
-        .expect("Failed to create message from hash");
-    
+    let message =
+        Message::from_digest_slice(message_hash).expect("Failed to create message from hash");
+
     // Sign with secp256k1 (this produces compact format compatible with cosmwasm-std)
     let signature = secp.sign_ecdsa(&message, signing_key);
     let sig_bytes = signature.serialize_compact();
-    
+
     format!("0x{}", hex::encode(sig_bytes))
 }
 
@@ -55,67 +55,82 @@ pub fn create_claim_with_signature(
     signing_key: &SecretKey,
 ) -> String {
     let block_info = app.block_info();
-    
+
     // Compute claim info hash manually to avoid type conversion issues
     // Use tiny-keccak to match the contract's implementation
-    use tradeos_cw_sc::msg::AssetInfo;
     use tiny_keccak::{Hasher, Keccak};
-    
+    use tradeos_cw_sc::msg::AssetInfo;
+
     // Token identifier: denom string for native, contract address string for cw20
     let token_bytes = match &claim.asset {
         AssetInfo::Native { denom } => denom.as_bytes().to_vec(),
         AssetInfo::Cw20 { contract } => contract.as_bytes().to_vec(),
     };
-    
+
     // To address
     let to_bytes = claim.to.as_bytes();
-    
+
     // Value: 32-byte big-endian
     let value_bytes = claim.value.to_be_bytes();
     let mut value_bytes_vec = vec![0u8; 32];
     value_bytes_vec[32 - value_bytes.len()..].copy_from_slice(&value_bytes);
-    
+
     // Deadline: 8-byte (u64) big-endian
     let deadline_bytes = claim.deadline.to_be_bytes();
-    
+
     // Comment: string as bytes
     let comment_bytes = claim.comment.as_bytes();
-    
+
     // Contract address: use bech32 address string directly as bytes
     let contract_bytes = contract_addr.as_bytes();
-    
+
     // Chain ID: string as bytes
     let chain_id_bytes = block_info.chain_id.as_bytes();
-    
-    // abi.encodePacked equivalent: concatenate all values
+
+    // Length-prefix variable-width fields to match contract hashing.
     let mut packed = Vec::new();
-    packed.extend_from_slice(&token_bytes);
-    packed.extend_from_slice(to_bytes);
+    let append_len_prefixed = |dst: &mut Vec<u8>, bytes: &[u8]| {
+        let len = bytes.len() as u32;
+        dst.extend_from_slice(&len.to_be_bytes());
+        dst.extend_from_slice(bytes);
+    };
+
+    append_len_prefixed(&mut packed, &token_bytes);
+    append_len_prefixed(&mut packed, to_bytes);
     packed.extend_from_slice(&value_bytes_vec);
     packed.extend_from_slice(&deadline_bytes);
-    packed.extend_from_slice(comment_bytes);
-    packed.extend_from_slice(contract_bytes);
-    packed.extend_from_slice(chain_id_bytes);
-    
+    append_len_prefixed(&mut packed, comment_bytes);
+    append_len_prefixed(&mut packed, contract_bytes);
+    append_len_prefixed(&mut packed, chain_id_bytes);
+
     // keccak256 hash
     let mut hasher = Keccak::v256();
     hasher.update(&packed);
     let mut claim_info_hash = [0u8; 32];
     hasher.finalize(&mut claim_info_hash);
-    
+
     // Apply EIP-191 prefix
     let eth_signed_message_hash = to_eth_signed_message_hash(&claim_info_hash);
-    
+
     // Sign the message hash
     sign_message_hash(signing_key, &eth_signed_message_hash)
 }
 
 // Contract wrapper for multitest
+fn instantiate_adapter(
+    deps: cosmwasm_std::DepsMut,
+    _env: cosmwasm_std::Env,
+    info: cosmwasm_std::MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<cosmwasm_std::Response, tradeos_cw_sc::error::ContractError> {
+    tradeos_cw_sc::execute::instantiate(deps, info, msg)
+}
+
 fn contract_vault() -> Box<dyn Contract<cosmwasm_std::Empty>> {
     let contract = ContractWrapper::new(
-        tradeos_cw_sc::contract::execute,
-        tradeos_cw_sc::contract::instantiate,
-        tradeos_cw_sc::contract::query,
+        tradeos_cw_sc::execute::execute,
+        instantiate_adapter,
+        tradeos_cw_sc::query::query,
     );
     Box::new(contract)
 }
@@ -153,16 +168,13 @@ pub fn setup_contract(app: &mut App, verifier_pubkey: Option<String>) -> Addr {
         }),
     };
 
-    let contract_addr = app
-        .instantiate_contract(
-            contract_id,
-            admin.clone(),
-            &msg,
-            &[],
-            "tradeos-vault",
-            Some(admin.to_string()),
-        )
-        .unwrap();
-
-    contract_addr
+    app.instantiate_contract(
+        contract_id,
+        admin.clone(),
+        &msg,
+        &[],
+        "tradeos-vault",
+        Some(admin.to_string()),
+    )
+    .unwrap()
 }
