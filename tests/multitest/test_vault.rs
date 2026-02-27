@@ -1,6 +1,6 @@
 use cosmwasm_std::Uint128;
 use cw_multi_test::{App, Executor, IntoAddr};
-use cw_ownable::{Action, Ownership};
+use cw_ownable::{Action, Expiration, Ownership};
 use tradeos_cw_sc::msg::{
     AssetInfo, ClaimInfo, ClaimedResponse, ConfigResponse, ExecuteMsg, GetClaimDigestResponse,
     QueryMsg,
@@ -21,7 +21,7 @@ fn test_contract_instantiation() {
         .query_wasm_smart(contract_addr.clone(), &QueryMsg::Config {})
         .unwrap();
 
-    assert_eq!(config.owner, "admin".into_addr().to_string());
+    assert_eq!(config.owner, Some("admin".into_addr().to_string()));
     assert!(!config.verifier_pubkey_hex.is_empty());
     assert!(config.verifier_pubkey_hex.starts_with("0x"));
 }
@@ -160,7 +160,7 @@ fn test_transfer_ownership() {
         .wrap()
         .query_wasm_smart(contract_addr.clone(), &QueryMsg::Config {})
         .unwrap();
-    assert_eq!(config.owner, admin.to_string());
+    assert_eq!(config.owner, Some(admin.to_string()));
 
     // Proposed owner cannot perform owner actions before acceptance.
     let (_signing_key, verifying_key) = generate_test_keypair();
@@ -181,7 +181,7 @@ fn test_transfer_ownership() {
         .wrap()
         .query_wasm_smart(contract_addr.clone(), &QueryMsg::Config {})
         .unwrap();
-    assert_eq!(config.owner, user1.to_string());
+    assert_eq!(config.owner, Some(user1.to_string()));
 
     // New owner can now perform owner operations.
     let msg = ExecuteMsg::SetVerifier {
@@ -229,6 +229,79 @@ fn test_ownership_query_flow() {
         .unwrap();
     assert_eq!(ownership.owner, Some(user1.to_string()));
     assert_eq!(ownership.pending_owner, None);
+}
+
+#[test]
+fn test_ownership_renounce_locks_owner_actions() {
+    let mut app = App::default();
+    let contract_addr = setup_contract(&mut app, None);
+    let admin = "admin".into_addr();
+
+    let msg = ExecuteMsg::UpdateOwnership(Action::RenounceOwnership);
+    let res = app.execute_contract(admin.clone(), contract_addr.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let ownership: Ownership<String> = app
+        .wrap()
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::Ownership {})
+        .unwrap();
+    assert_eq!(ownership.owner, None);
+    assert_eq!(ownership.pending_owner, None);
+
+    let config: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(contract_addr.clone(), &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(config.owner, None);
+
+    // Previous owner should no longer be able to run owner-only actions.
+    let (_signing_key, verifying_key) = generate_test_keypair();
+    let new_pubkey = pubkey_to_hex(&verifying_key);
+    let msg = ExecuteMsg::SetVerifier {
+        verifier_pubkey: new_pubkey,
+    };
+    let res = app.execute_contract(admin.clone(), contract_addr.clone(), &msg, &[]);
+    assert!(res.is_err());
+
+    // No account can transfer ownership once ownership is renounced.
+    let msg = ExecuteMsg::UpdateOwnership(Action::TransferOwnership {
+        new_owner: "user1".into_addr().to_string(),
+        expiry: None,
+    });
+    let res = app.execute_contract(admin, contract_addr, &msg, &[]);
+    assert!(res.is_err());
+}
+
+#[test]
+fn test_transfer_ownership_proposal_expires() {
+    let mut app = App::default();
+    let contract_addr = setup_contract(&mut app, None);
+    let admin = "admin".into_addr();
+    let user1 = "user1".into_addr();
+
+    let expiry_height = app.block_info().height + 1;
+    let msg = ExecuteMsg::UpdateOwnership(Action::TransferOwnership {
+        new_owner: user1.to_string(),
+        expiry: Some(Expiration::AtHeight(expiry_height)),
+    });
+    let res = app.execute_contract(admin.clone(), contract_addr.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    // Move beyond expiry, then acceptance should fail.
+    app.update_block(|block| {
+        block.height = expiry_height + 1;
+    });
+
+    let msg = ExecuteMsg::UpdateOwnership(Action::AcceptOwnership);
+    let res = app.execute_contract(user1, contract_addr.clone(), &msg, &[]);
+    assert!(res.is_err());
+
+    // Owner should remain unchanged after failed acceptance.
+    let config: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(contract_addr, &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(config.owner, Some(admin.to_string()));
 }
 
 #[test]

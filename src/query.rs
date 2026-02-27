@@ -21,12 +21,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&ClaimedResponse { claimed })
         }
         QueryMsg::Config {} => {
-            let owner = get_ownership(deps.storage)?
-                .owner
-                .ok_or_else(|| cosmwasm_std::StdError::generic_err("owner not set"))?;
+            let owner = get_ownership(deps.storage)?.owner;
             let pk = VERIFIER_PUBKEY.load(deps.storage)?;
             to_json_binary(&ConfigResponse {
-                owner: owner.to_string(),
+                owner: owner.map(|addr| addr.to_string()),
                 verifier_pubkey_hex: format!("0x{}", hex::encode(pk)),
             })
         }

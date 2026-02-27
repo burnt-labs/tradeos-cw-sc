@@ -70,7 +70,7 @@ pub struct ClaimedResponse {
 
 #[cw_serde]
 pub struct ConfigResponse {
-    pub owner: String,
+    pub owner: Option<String>,
     pub verifier_pubkey_hex: String,
 }
 
