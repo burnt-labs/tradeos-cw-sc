@@ -7,9 +7,11 @@ set -euo pipefail
 # Usage examples:
 #   ./scripts/init_migratable_from_code_id.sh 2026
 #   CODE_ID=2026 ./scripts/init_migratable_from_code_id.sh
+#   VERIFIER_PUBKEY=0x... CODE_ID=66 CHAIN_ID=xion-mainnet-1 \
+#     RPC_NODE=https://rpc.xion-mainnet-1.burnt.com:443 ./scripts/init_migratable_from_code_id.sh 66
 #
 # You can override defaults via environment variables:
-#   WALLET, ADMIN_ADDR, CHAIN_ID, RPC_NODE, INIT_MSG, LABEL
+#   WALLET, ADMIN_ADDR, CHAIN_ID, RPC_NODE, INIT_MSG, LABEL, VERIFIER_PUBKEY
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR"
@@ -27,9 +29,9 @@ RPC_NODE="${RPC_NODE:-https://rpc.xion-testnet-2.burnt.com:443}"
 # Admin address that will be allowed to migrate the contract in the future.
 ADMIN_ADDR="${ADMIN_ADDR:-$(xiond keys show "$WALLET" -a)}"
 
-# Default init msg matches README; override INIT_MSG to customize.
-DEFAULT_VERIFIER_PUBKEY="0x03a6a96da6e704f74f53b3a98e0ae37123abf5a96803d8d971795637b0034a60cf"
-INIT_MSG="${INIT_MSG:-{\"owner\":null,\"verifier_pubkey\":\"$DEFAULT_VERIFIER_PUBKEY\"}}"
+# Default init msg matches README; override INIT_MSG to customize, or set VERIFIER_PUBKEY only.
+VERIFIER_PUBKEY="${VERIFIER_PUBKEY:-0x03a6a96da6e704f74f53b3a98e0ae37123abf5a96803d8d971795637b0034a60cf}"
+INIT_MSG="${INIT_MSG:-{\"owner\":null,\"verifier_pubkey\":\"$VERIFIER_PUBKEY\"}}"
 
 LABEL="${LABEL:-tradeos-cw-sc-migratable}"
 
