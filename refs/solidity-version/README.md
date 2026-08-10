@@ -31,11 +31,3 @@ pnpm check-in:call --network <>
 pnpm vault:call --network <>
 pnpm swap-handler:call --network <>
 ```
-
-# Verify Contracts
-
-```
-pnpm check-in:verify --network <>
-pnpm vault:verify --network <>
-pnpm swap-handler:verify --network <>
-```

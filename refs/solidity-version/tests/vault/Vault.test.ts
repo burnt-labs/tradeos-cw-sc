@@ -1,18 +1,19 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
+import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/types";
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import { Vault, Points } from "../../typechain-types";
+import { network } from "hardhat";
+import type { Vault, Points } from "../../types/index.js";
+
+const { ethers, networkHelpers } = await network.create();
 
 describe("Vault", () => {
     let points: Points;
     let pointsAddress: string;
     let vault: Vault;
     let vaultAddress: string;
-    let owner: SignerWithAddress;
-    let verifier: SignerWithAddress;
-    let user: SignerWithAddress;
-    let otherUser: SignerWithAddress;
+    let owner: HardhatEthersSigner;
+    let verifier: HardhatEthersSigner;
+    let user: HardhatEthersSigner;
+    let otherUser: HardhatEthersSigner;
 
     beforeEach(async () => {
         [owner, verifier, user, otherUser] = await ethers.getSigners();
@@ -36,7 +37,7 @@ describe("Vault", () => {
         let claimInfo: any;
 
         beforeEach(async () => {
-            deadline = (await time.latest()) + 60;
+            deadline = (await networkHelpers.time.latest()) + 60;
             claimInfo = {
                 token: pointsAddress,
                 to: user.address,
@@ -53,37 +54,49 @@ describe("Vault", () => {
                 claimInfo.value = 0;
                 let messageHash = await vault.getClaimInfoHash(claimInfo);
                 let newSignature = await verifier.signMessage(ethers.getBytes(messageHash));
-                await expect(vault.connect(user).claim(claimInfo, newSignature)).to.be.rejectedWith("InvalidValue");
+                await expect(vault.connect(user).claim(claimInfo, newSignature)).to.be.revertedWithCustomError(
+                    vault,
+                    "InvalidValue",
+                );
 
                 const contractBalance = await points.balanceOf(vaultAddress);
                 claimInfo.value = contractBalance + 1n;
                 messageHash = await vault.getClaimInfoHash(claimInfo);
                 newSignature = await verifier.signMessage(ethers.getBytes(messageHash));
-                await expect(vault.connect(user).claim(claimInfo, newSignature)).to.be.rejectedWith(
+                await expect(vault.connect(user).claim(claimInfo, newSignature)).to.be.revertedWithCustomError(
+                    vault,
                     "InsufficientBalance",
                 );
 
                 await vault.connect(owner).emergencyWithdraw(pointsAddress, owner.address, contractBalance);
-                await expect(vault.connect(user).claim(claimInfo, newSignature)).to.be.rejectedWith(
+                await expect(vault.connect(user).claim(claimInfo, newSignature)).to.be.revertedWithCustomError(
+                    vault,
                     "InsufficientBalance",
                 );
             });
 
             it("should revert with SignatureExpired for expired claims", async () => {
-                await time.increase(3601);
-                await expect(vault.connect(user).claim(claimInfo, signature)).to.be.rejectedWith("SignatureExpired");
+                await networkHelpers.time.increase(3601);
+                await expect(vault.connect(user).claim(claimInfo, signature)).to.be.revertedWithCustomError(
+                    vault,
+                    "SignatureExpired",
+                );
             });
 
             it("should revert with AlreadyClaimed for reused signatures", async () => {
                 await vault.connect(user).claim(claimInfo, signature);
-                await expect(vault.connect(user).claim(claimInfo, signature)).to.be.rejectedWith("AlreadyClaimed");
+                await expect(vault.connect(user).claim(claimInfo, signature)).to.be.revertedWithCustomError(
+                    vault,
+                    "AlreadyClaimed",
+                );
             });
 
             it("should revert with InvalidSignature for invalid signer", async () => {
                 const fakeSignature = await otherUser.signMessage(
                     ethers.getBytes(await vault.getClaimInfoHash(claimInfo)),
                 );
-                await expect(vault.connect(user).claim(claimInfo, fakeSignature)).to.be.rejectedWith(
+                await expect(vault.connect(user).claim(claimInfo, fakeSignature)).to.be.revertedWithCustomError(
+                    vault,
                     "InvalidSignature",
                 );
             });
@@ -92,7 +105,7 @@ describe("Vault", () => {
                 claimInfo.comment = "";
                 const messageHash = await vault.getClaimInfoHash(claimInfo);
                 const newSignature = await verifier.signMessage(ethers.getBytes(messageHash));
-                await expect(vault.connect(user).claim(claimInfo, newSignature)).to.not.be.rejected;
+                await vault.connect(user).claim(claimInfo, newSignature);
             });
         });
 
@@ -103,8 +116,10 @@ describe("Vault", () => {
                 await tx.wait();
 
                 const receipt = await tx.wait();
-                const event = receipt?.logs[receipt.logs.length - 1];
-                expect(event?.eventName).to.equal("Claimed");
+                const event = receipt?.logs
+                    .map((log) => vault.interface.parseLog(log))
+                    .find((parsedLog) => parsedLog?.name === "Claimed");
+                expect(event?.name).to.equal("Claimed");
 
                 const args = event?.args;
                 expect(args?.token).to.equal(pointsAddress);
@@ -136,8 +151,10 @@ describe("Vault", () => {
                 const tx = await vault.connect(user).claim(ethClaimInfo, ethSignature);
                 const receipt = await tx.wait();
 
-                const event = receipt?.logs[receipt.logs.length - 1];
-                expect(event?.eventName).to.equal("Claimed");
+                const event = receipt?.logs
+                    .map((log) => vault.interface.parseLog(log))
+                    .find((parsedLog) => parsedLog?.name === "Claimed");
+                expect(event?.name).to.equal("Claimed");
 
                 const args = event?.args;
                 expect(args?.token).to.equal(ethers.ZeroAddress);
@@ -146,7 +163,7 @@ describe("Vault", () => {
                 expect(args?.comment).to.equal("Test ETH Claim");
 
                 const balanceAfter = await ethers.provider.getBalance(user.address);
-                const gasCost = receipt.gasUsed * receipt.gasPrice;
+                const gasCost = receipt!.fee;
                 expect(balanceAfter + gasCost - balanceBefore).to.equal(ethValue);
             });
         });
@@ -157,19 +174,24 @@ describe("Vault", () => {
             const tx = await vault.connect(owner).setVerifier(otherUser.address);
             await tx.wait();
             const receipt = await tx.wait();
-            const event = receipt?.logs[receipt.logs.length - 1];
-            expect(event?.eventName).to.equal("VerifierUpdated");
+            const event = receipt?.logs
+                .map((log) => vault.interface.parseLog(log))
+                .find((parsedLog) => parsedLog?.name === "VerifierUpdated");
+            expect(event?.name).to.equal("VerifierUpdated");
             expect(await vault.verifier()).to.equal(otherUser.address);
         });
 
         it("should revert when called by non-owner", async () => {
-            await expect(vault.connect(user).setVerifier(otherUser.address)).to.be.rejectedWith(
+            await expect(vault.connect(user).setVerifier(otherUser.address)).to.be.revertedWith(
                 "Ownable: caller is not the owner",
             );
         });
 
         it("should revert with InvalidAddress for zero address", async () => {
-            await expect(vault.connect(owner).setVerifier(ethers.ZeroAddress)).to.be.rejectedWith("InvalidAddress");
+            await expect(vault.connect(owner).setVerifier(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+                vault,
+                "InvalidAddress",
+            );
         });
     });
 

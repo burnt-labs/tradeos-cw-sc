@@ -1,79 +1,77 @@
-import "@nomicfoundation/hardhat-toolbox";
-import "hardhat-deploy";
-import type { HardhatUserConfig } from "hardhat/config";
+import hardhatEthers from "@nomicfoundation/hardhat-ethers";
+import hardhatEthersChaiMatchers from "@nomicfoundation/hardhat-ethers-chai-matchers";
+import hardhatMocha from "@nomicfoundation/hardhat-mocha";
+import hardhatNetworkHelpers from "@nomicfoundation/hardhat-network-helpers";
+import hardhatTypechain from "@nomicfoundation/hardhat-typechain";
+import { defineConfig } from "hardhat/config";
 import * as dotenv from "dotenv";
 
 dotenv.config();
 
-const config: HardhatUserConfig = {
-    defaultNetwork: "hardhat",
+const accounts = process.env.MNEMONICS ? { mnemonic: process.env.MNEMONICS } : [];
+
+export default defineConfig({
+    plugins: [hardhatEthers, hardhatEthersChaiMatchers, hardhatMocha, hardhatNetworkHelpers, hardhatTypechain],
     networks: {
-        hardhat: {},
+        hardhat: {
+            type: "edr-simulated",
+            chainType: "l1",
+        },
         sepolia: {
+            type: "http",
+            chainType: "l1",
             chainId: 11155111,
             url: "https://rpc.ankr.com/eth_sepolia",
-            accounts: {
-                mnemonic: process.env.MNEMONICS,
-            },
+            accounts,
         },
         bscTestnet: {
+            type: "http",
+            chainType: "l1",
             chainId: 97,
             url: "https://rpc.ankr.com/bsc_testnet_chapel",
-            accounts: {
-                mnemonic: process.env.MNEMONICS,
-            },
+            accounts,
         },
         baseSepolia: {
+            type: "http",
+            chainType: "l1",
             chainId: 84532,
             url: "https://rpc.ankr.com/base_sepolia",
-            accounts: {
-                mnemonic: process.env.MNEMONICS,
-            },
+            accounts,
         },
         hashkeyTestnet: {
+            type: "http",
+            chainType: "l1",
             chainId: 133,
             url: "https://hashkeychain-testnet.alt.technology",
-            accounts: {
-                mnemonic: process.env.MNEMONICS,
-            },
+            accounts,
         },
         ethereum: {
+            type: "http",
+            chainType: "l1",
             chainId: 1,
             url: "https://rpc.ankr.com/eth",
-            accounts: {
-                mnemonic: process.env.MNEMONICS,
-            },
+            accounts,
         },
         bsc: {
+            type: "http",
+            chainType: "l1",
             chainId: 56,
             url: "https://1rpc.io/bnb",
-            accounts: {
-                mnemonic: process.env.MNEMONICS,
-            },
+            accounts,
         },
         base: {
+            type: "http",
+            chainType: "l1",
             chainId: 8453,
             url: "https://rpc.ankr.com/base",
-            accounts: {
-                mnemonic: process.env.MNEMONICS,
-            },
+            accounts,
         },
         hashkey: {
+            type: "http",
+            chainType: "l1",
             chainId: 177,
             url: "https://mainnet.hsk.xyz",
-            accounts: {
-                mnemonic: process.env.MNEMONICS,
-            },
-        },
-    },
-    etherscan: {
-        apiKey: {
-            sepolia: process.env.ETHERSCAN_API_KEY,
-            bscTestnet: process.env.BSCSCAN_API_KEY,
-            baseSepolia: process.env.BASESCAN_API_KEY,
-            ethereum: process.env.ETHERSCAN_API_KEY,
-            bsc: process.env.BSCSCAN_API_KEY,
-            base: process.env.BASESCAN_API_KEY,
+            accounts,
         },
     },
     solidity: {
@@ -89,31 +87,16 @@ const config: HardhatUserConfig = {
             },
         },
     },
-    namedAccounts: {
-        deployer: {
-            default: 0,
-        },
-        mockUser: {
-            default: 1,
-        },
-    },
-    gasReporter: {
-        enabled: true,
-        src: "./contracts",
-        excludeContracts: ["Forwarder"],
-        currency: "USD",
-    },
     paths: {
         sources: "./contracts",
-        tests: "./tests",
+        tests: {
+            mocha: "./tests",
+        },
         cache: "./cache",
         artifacts: "./artifacts",
     },
-    remappings: ["@openzeppelin/=node_modules/@openzeppelin/"],
     typechain: {
         outDir: "types",
-        target: "ethers-v6",
+        tsNocheck: true,
     },
-};
-
-export default config;
+});
