@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useAbstraxionAccount, useAbstraxionSigningClient } from "@burnt-labs/abstraxion";
+import { useAbstraxionAccount, useAbstraxionSigningClient } from "@burnt-labs/abstraxion-react";
 import { Button, Input } from "@burnt-labs/ui";
 import "@burnt-labs/ui/dist/index.css";
 import { TradeOSQueries } from "@/components/TradeOSQueries";
@@ -100,4 +100,3 @@ export default function Page(): JSX.Element {
     </main>
   );
 }
-
