@@ -1,14 +1,16 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/types";
 import { expect } from "chai";
-import { Contract } from "ethers";
-import { ethers } from "hardhat";
+import { network } from "hardhat";
+import type { CheckIn, Forwarder } from "../../types/index.js";
+
+const { ethers } = await network.create();
 
 describe("CheckIn", function () {
-    let checkIn: Contract;
-    let minimalForwarder: Contract;
-    let deployer: SignerWithAddress;
-    let user: SignerWithAddress;
-    let forwarder: SignerWithAddress;
+    let checkIn: CheckIn;
+    let minimalForwarder: Forwarder;
+    let deployer: HardhatEthersSigner;
+    let user: HardhatEthersSigner;
+    let forwarder: HardhatEthersSigner;
 
     beforeEach(async function () {
         [deployer, user, forwarder] = await ethers.getSigners();

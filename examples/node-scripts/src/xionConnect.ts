@@ -1,13 +1,13 @@
-import { SigningCosmWasmClient } from "@cosmjs/cosmwasm-stargate";
+import { CosmWasmClient, SigningCosmWasmClient } from "@cosmjs/cosmwasm-stargate";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
-import { GasPrice, StargateClient } from "@cosmjs/stargate";
+import { GasPrice } from "@cosmjs/stargate";
 import config from "./config";
 
 /**
  * Creates a read-only client for querying the blockchain
  */
-export async function getQueryClient(): Promise<StargateClient> {
-  return await StargateClient.connect(config.XION_RPC_URL);
+export async function getQueryClient(): Promise<CosmWasmClient> {
+  return await CosmWasmClient.connect(config.XION_RPC_URL);
 }
 
 /**
@@ -46,4 +46,3 @@ export async function getAddressFromMnemonic(
   const [firstAccount] = await wallet.getAccounts();
   return firstAccount.address;
 }
-

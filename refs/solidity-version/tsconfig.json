@@ -7,14 +7,14 @@
         "experimentalDecorators": true,
         "forceConsistentCasingInFileNames": true,
         "lib": ["es2020"],
-        "module": "commonjs",
-        "moduleResolution": "node",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
         "noImplicitAny": true,
         "removeComments": true,
         "resolveJsonModule": true,
         "sourceMap": true,
         "strict": true,
-        "target": "es2020"
+        "target": "ES2022"
     },
     "exclude": ["node_modules"],
     "files": ["./hardhat.config.ts"],
