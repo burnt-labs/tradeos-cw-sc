@@ -11,9 +11,11 @@ pub const INITIAL_BALANCE: u128 = 1000000;
 // Helper function to generate a test secp256k1 key pair
 // Use secp256k1 crate for full compatibility with cosmwasm-std
 pub fn generate_test_keypair() -> (SecretKey, PublicKey) {
-    use rand::thread_rng;
+    // Draw from the rand that secp256k1 itself links against; the top-level
+    // rand 0.9 dev-dependency implements a different rand_core version and
+    // its ThreadRng is not accepted by SecretKey::new.
     let secp = Secp256k1::new();
-    let mut rng = thread_rng();
+    let mut rng = secp256k1::rand::thread_rng();
     let secret_key = SecretKey::new(&mut rng);
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
     (secret_key, public_key)
