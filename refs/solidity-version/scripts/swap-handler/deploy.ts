@@ -1,11 +1,11 @@
-import { ethers, network } from "hardhat";
+import { network } from "hardhat";
 import * as fs from "fs";
-import * as path from "path";
+
+const { ethers, networkName } = await network.create();
 
 async function main() {
-    const addressPath = path.join(__dirname, "../../contracts/swap-handler/deployedAddress.json");
+    const addressPath = new URL("../../contracts/swap-handler/deployedAddress.json", import.meta.url);
     const addresses = JSON.parse(fs.readFileSync(addressPath, "utf8"));
-    const networkName = network.name;
     if (!addresses[networkName]) {
         addresses[networkName] = {};
     }

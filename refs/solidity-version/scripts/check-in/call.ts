@@ -1,8 +1,10 @@
-import { ethers, network } from "hardhat";
+import { network } from "hardhat";
 import * as fs from "fs";
-import * as path from "path";
+import type { CheckIn } from "../../types/index.js";
 
-async function printStorageVariables(contract, mockUserAddress) {
+const { ethers, networkName } = await network.create();
+
+async function printStorageVariables(contract: CheckIn, mockUserAddress: string) {
     const totalCount = await contract.checkInTotalCount();
     console.log(`checkInTotalCount: ${totalCount.toString()}`);
     const checkInInfo = await contract.checkInInfos(mockUserAddress);
@@ -12,9 +14,8 @@ async function printStorageVariables(contract, mockUserAddress) {
 }
 
 async function main() {
-    const addressPath = path.join(__dirname, "../../contracts/check-in/deployedAddress.json");
+    const addressPath = new URL("../../contracts/check-in/deployedAddress.json", import.meta.url);
     const addresses = JSON.parse(fs.readFileSync(addressPath, "utf8"));
-    const networkName = network.name;
     const networkAddresses = addresses[networkName];
     if (!networkAddresses) {
         throw new Error(`No addresses found for network ${networkName}`);

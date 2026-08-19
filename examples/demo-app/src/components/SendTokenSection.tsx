@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useAbstraxionAccount, useAbstraxionSigningClient } from "@burnt-labs/abstraxion";
+import { useAbstraxionAccount, useAbstraxionSigningClient } from "@burnt-labs/abstraxion-react";
 import { Button, Input } from "@burnt-labs/ui";
 
 interface SendTokenSectionProps {
@@ -154,4 +154,3 @@ export function SendTokenSection({ contractAddress }: SendTokenSectionProps) {
     </div>
   );
 }
-

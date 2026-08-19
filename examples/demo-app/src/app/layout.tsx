@@ -1,13 +1,14 @@
 "use client";
 import "./globals.css";
 import { Inter } from "next/font/google";
-import { AbstraxionProvider } from "@burnt-labs/abstraxion";
+import { AbstraxionProvider } from "@burnt-labs/abstraxion-react";
 
 const inter = Inter({ subsets: ["latin"] });
 
 const treasuryContract = process.env.NEXT_PUBLIC_TREASURY_CONTRACT || "";
 
 const treasuryConfig = {
+  chainId: "xion-testnet-2",
   treasury: treasuryContract,
   gasPrice: "0.025uxion",
 };
@@ -27,4 +28,3 @@ export default function RootLayout({
     </html>
   );
 }
-

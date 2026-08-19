@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useAbstraxionAccount, useAbstraxionClient } from "@burnt-labs/abstraxion";
+import { useAbstraxionAccount, useAbstraxionClient } from "@burnt-labs/abstraxion-react";
 import { Button, Input } from "@burnt-labs/ui";
 
 interface TradeOSQueriesProps {
@@ -199,4 +199,3 @@ export function TradeOSQueries({ contractAddress }: TradeOSQueriesProps) {
     </div>
   );
 }
-
